@@ -14,9 +14,10 @@ const pages = readdirSync(directory)
   .sort()
   .map((filename) => path.join(directory, filename));
 
-if (pages.length !== 768) throw new Error(`Expected 768 approved page files, found ${pages.length}. Re-run extraction and inspect the source set.`);
+const expectedPageCount = 777;
+if (pages.length !== expectedPageCount) throw new Error(`Expected ${expectedPageCount} approved page files, found ${pages.length}. Re-run extraction and inspect the source set.`);
 if (!Number.isInteger(batchSize) || batchSize < 1 || !Number.isInteger(startOffset) || startOffset < 0 || startOffset >= pages.length) {
-  throw new Error("Provide valid --start=<0-767> and --count=<positive integer> values.");
+  throw new Error(`Provide valid --start=<0-${pages.length - 1}> and --count=<positive integer> values.`);
 }
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

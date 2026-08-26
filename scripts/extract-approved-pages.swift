@@ -17,6 +17,7 @@ let sources = [
     SourceRange(sourceID: "koni-front-coil-overs", filename: "14676-koni-front-coil-overs.pdf", pages: 1...7),
     SourceRange(sourceID: "seat-track-mk5", filename: "SEAT-TRACK-Mk5-REV-A.pdf", pages: 1...9),
     SourceRange(sourceID: "pedalbox-wilwood", filename: "PEDALBOX-WILWOOD-rev-H.pdf", pages: 1...16),
+    SourceRange(sourceID: "wilwood-140-15138", filename: "Wilwood-140-15138-DS-1111.pdf", pages: 1...9),
     SourceRange(sourceID: "chassis-harness-rev-w", filename: "Chassis-Harness-rev-W.pdf", pages: 1...70),
     SourceRange(sourceID: "glovebox", filename: "Glovebox.pdf", pages: 1...16),
     SourceRange(sourceID: "wind-wings", filename: "12049-wind-wings.pdf", pages: 1...3),
