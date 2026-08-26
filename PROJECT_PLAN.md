@@ -225,19 +225,16 @@ unnecessary implementation detail.
 
 ## Current next sequence
 
-1. Validate the new table-of-contents → controlling document/start page → bounded
-   section retrieval → structured card flow on front suspension. The first live
-   acceptance run retrieved required manual pp. 44 and 47 and their named tool lists.
-2. Validate selected-build scoping on IRS and fuel-tank installation: core staging
-   lists must exclude selected later procedures, and a vendor-document gap must
-   become STOP & VERIFY rather than a substituted manual configuration.
-3. Keep external research as a separate, explicit user action: a chat request such
-   as “search the forums and web” triggers one Factory Five Forum-only pass and a
-   separately labeled, last-resort general-web pass. It must be saved with any
-   resulting briefing, never block manual-first output, and never turn community
-   or generic-web consensus into a safety-critical instruction.
-4. Tune the concise garage-card presentation with representative builder tasks,
-   then write and rehearse the class-demo script and fallback path.
+1. Run the final local-demo acceptance pass with four saved artifacts: 2015+ IRS,
+   front suspension, fuel-tank installation, and one unscripted ad-hoc task. Check
+   card usefulness, exact page navigation, selected-build scoping, and latency.
+2. Run one explicit outside-research request during that pass. Confirm the answer
+   is concise, Factory Five Forum results are labeled community context, general
+   web is visibly last-resort, and any saved briefing retains the linked sources.
+3. Tune only the resulting UI/usability issues, then write and rehearse the class
+   demo script and a fallback path using pre-saved briefings/screenshots.
+4. Add the presentation-friendly “How Garage Goblin Works” tab if time permits;
+   it is the highest-value remaining class-presentation enhancement.
 5. Treat authentication, persistent database/blob storage, rate limits, and Vercel
    deployment as the hosted-product stretch sequence after the local demo is
    credible and evaluated.

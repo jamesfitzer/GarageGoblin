@@ -1,6 +1,6 @@
 # Garage Goblin Retrieval Evaluation Results
 
-Run against the clean full approved page-aware Vector Store: 768 completed files,
+Run against the clean full approved page-aware Vector Store: 777 completed files,
 zero indexing failures. The results below assess the configured local route model,
 `gpt-5.4-mini`, using the prompts in `EVALUATION_SET.md`.
 
@@ -137,3 +137,22 @@ One final paid front-suspension run passed the targeted coverage check:
 The next quality check is to run the same generic flow on IRS and one genuinely
 ad-hoc task such as fuel-tank installation. Curated tasks remain UI shortcuts and
 evaluation fixtures, not required retrieval knowledge.
+
+## Brake-document and external-research update
+
+The Wilwood 140-15138 front brake-kit instructions were added as a nine-page,
+page-aware **Wilwood vendor instruction**. A direct retrieval check returned its
+PDF pages 4 and 6 for a front brake-kit query, so the app can now surface the
+vendor instructions alongside the controlling Factory Five material.
+
+The brake-fluid question also established two guardrails:
+
+- If Factory Five and a component-vendor instruction state materially different
+  safety-critical fluid requirements, the manual-grounded answer must not choose,
+  reconcile, or phrase either as the practical default. It must STOP & VERIFY
+  with Factory Five and the component manufacturer.
+- An explicit natural-language request for outside perspective (for example,
+  “what do the forums say?”, “search Google,” or “is there consensus online?”)
+  now triggers a separate Factory Five Forum-only pass and a last-resort general
+  web pass. The concise result is contextual only; its linked sources persist if
+  saved as a briefing.

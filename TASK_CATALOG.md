@@ -12,7 +12,7 @@ procedure and source of detailed instructions.
 | Front suspension, coil-overs, and sway bar | Assembly | p. 44 | Front Koni instructions and selected front-sway-bar configuration. | 4 |
 | 2015+ IRS installation | Assembly | pp. 104-141 | 2015 IRS, IRS sway bar, and IRS Koni instructions; selected forum findings add only labeled hold points. | 1 |
 | Fuel tank, EFI pump access, and fuel-line planning | Mock-up / assembly | pp. 166-191 | Exact EFI plumbing remains owner-private project context until separately sanitized. | 6 |
-| Pedal box, hydraulic clutch, and brake-system preparation | Assembly | pp. 192-218, 250-281 | Wilwood pedal-box instructions; safety-critical and exact configuration dependent. | 5 |
+| Pedal box, hydraulic clutch, and brake-system preparation | Assembly | pp. 192-218, 250-281 | Wilwood pedal-box and 140-15138 front-brake-kit instructions; safety-critical and exact configuration dependent. | 5 |
 | Engine, transmission, cooling, and engine ground | Assembly | pp. 287-334 | Delivered Forte package documentation is required before component-specific claims. | 7 |
 | Chassis wiring, fan, and gauge integration | Assembly | pp. 282-286 | Chassis-harness Rev W only after current-harness applicability check. | 8 |
 | Cockpit panels, seat tracks, glovebox, and HVAC mock-up | Mock-up | pp. 238-250, 347-349 | Seat-track and glovebox instructions; Coupe HVAC document remains reference-only. | 9 |
