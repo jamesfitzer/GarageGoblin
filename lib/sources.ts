@@ -6,6 +6,7 @@ export type SourceId =
   | "koni-front-coil-overs"
   | "seat-track-mk5"
   | "pedalbox-wilwood"
+  | "wilwood-140-15138"
   | "chassis-harness-rev-w"
   | "glovebox"
   | "wind-wings";
@@ -14,7 +15,7 @@ export type Source = {
   id: SourceId;
   filename: string;
   title: string;
-  authority: "Factory Five manual" | "Factory Five option instruction";
+  authority: "Factory Five manual" | "Factory Five option instruction" | "Wilwood vendor instruction";
   initialPage: number;
 };
 
@@ -66,6 +67,13 @@ export const initialSources: Source[] = [
     filename: "PEDALBOX-WILWOOD-rev-H.pdf",
     title: "Wilwood Pedal Box Instructions",
     authority: "Factory Five option instruction",
+    initialPage: 1,
+  },
+  {
+    id: "wilwood-140-15138",
+    filename: "Wilwood-140-15138-DS-1111.pdf",
+    title: "Wilwood Front Brake Kit Instructions (140-15138)",
+    authority: "Wilwood vendor instruction",
     initialPage: 1,
   },
   {
