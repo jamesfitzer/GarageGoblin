@@ -101,7 +101,7 @@ export async function POST(request: Request) {
       const [forumResponse, webResponse] = await Promise.all([
         client.responses.create({
           model: "gpt-5.4-mini",
-          instructions: `You are Garage Goblin's explicit community-research pass. Search only the Factory Five Forum for the vehicle-specific question supplied. Report at most three concrete takeaways or say no relevant discussion was found. Every statement must be labeled "Factory Five community experience — not Factory Five guidance." Never use community advice to authorize drilling, machining, a torque value, fluid substitution, or another deviation from the Factory Five manual. Be concise.`,
+          instructions: `You are Garage Goblin's explicit community-research pass. Search only the Factory Five Forum for the vehicle-specific question supplied. Return a maximum of two short, plain-language sentences: name what a relevant thread actually reports, then say whether it establishes a consensus or leaves the question unresolved. If a relevant thread does not settle the question, say so plainly and direct the builder to Factory Five or the component manufacturer. If no relevant thread is found, return exactly: "No Factory Five Forum thread in this search resolved this exact question." Do not repeat the controlling manual, quote policy, say "I can't verify," say "approved source set," or use labels/headings/lists. Never use community advice to authorize drilling, machining, a torque value, fluid substitution, or another deviation from Factory Five documentation.`,
           input: researchInput,
           tools: [{ type: "web_search", filters: { allowed_domains: ["thefactoryfiveforum.com"] }, search_context_size: "low" }],
           tool_choice: "required",
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         }),
         client.responses.create({
           model: "gpt-5.4-mini",
-          instructions: `You are Garage Goblin's explicit last-resort general-web research pass. Search for generic automotive/component context relevant to the supplied request, not Factory Five-specific authorization. Report at most three concrete, source-linked takeaways or say no useful context was found. Begin every takeaway with "General web context — not Factory Five guidance." Never select a torque value, fluid, fitment, machining action, or other safety-critical configuration from web consensus. State that Factory Five documentation controls and the component manufacturer is the appropriate escalation point for a conflict. Be concise.`,
+          instructions: `You are Garage Goblin's explicit last-resort general-web research pass. Search for generic automotive/component context relevant to the supplied request, not Factory Five-specific authorization. Return at most one short plain-language sentence only when the search adds a concrete point beyond the Factory Five Forum result. Otherwise return exactly: "No useful general-web context beyond the forum discussion was found." Do not repeat the controlling manual, quote policy, use labels/headings/lists, or state generic safety caveats. Never select a torque value, fluid, fitment, machining action, or other safety-critical configuration from web consensus.`,
           input: researchInput,
           tools: [{ type: "web_search", search_context_size: "low" }],
           tool_choice: "required",
@@ -118,12 +118,19 @@ export async function POST(request: Request) {
           store: false,
         }),
       ]);
+      const forumUrls = getWebSourceUrls(forumResponse as unknown as WebSearchResponse);
+      const generalWebUrls = getWebSourceUrls(webResponse as unknown as WebSearchResponse);
+      const distinctGeneralWebUrls = generalWebUrls.filter((url) => !forumUrls.includes(url));
       const sources: WebResearchSource[] = [
-        ...getWebSourceUrls(forumResponse as unknown as WebSearchResponse).map((url) => ({ title: "Factory Five Forum thread", url, sourceType: "Factory Five Forum" as const })),
-        ...getWebSourceUrls(webResponse as unknown as WebSearchResponse).map((url) => ({ title: "General web source", url, sourceType: "General web" as const })),
+        ...forumUrls.map((url) => ({ title: "Factory Five Forum thread", url, sourceType: "Factory Five Forum" as const })),
+        ...distinctGeneralWebUrls.map((url) => ({ title: "General web source", url, sourceType: "General web" as const })),
       ].filter((source, index, all) => all.findIndex((item) => item.url === source.url) === index).slice(0, 6);
+      const answerParts = [
+        `### Factory Five Forum\n\n${forumResponse.output_text}`,
+        distinctGeneralWebUrls.length ? `### General web (last resort)\n\n${webResponse.output_text}` : "",
+      ].filter(Boolean);
       return Response.json({
-        answer: `## Factory Five Forum context\n\n${forumResponse.output_text}\n\n## General web context (last resort)\n\n${webResponse.output_text}`,
+        answer: answerParts.join("\n\n"),
         citations: [],
         webSources: sources,
         warning: "External research is contextual only. Factory Five documentation controls; resolve a conflict with Factory Five or the relevant component manufacturer.",
