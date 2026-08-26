@@ -69,6 +69,9 @@ stretch goal after the local demo is credible and tested.
   for safety-critical use.
 - Prove page-specific citation behavior with a local retrieval spike before
   building the broader application experience.
+- Keep Garage Goblin's behavioral policy in a versioned application instruction
+  module sent with every stateless Responses request. Do not rely on a persistent
+  OpenAI thread for source hierarchy, safety, torque, or configuration rules.
 
 ## Source precedence
 
@@ -131,6 +134,19 @@ date visible at a glance. Preserve sources and unresolved questions in each arti
 
 Add approved Factory Five forum threads, task tags, links, and prominent community-source labeling. Do not enable live forum/general-web search until the manual-grounded core is verified.
 
+When research is enabled, use a deliberate, reviewable escalation path rather than
+unbounded search: (1) retrieve controlling Factory Five and vendor documents,
+(2) search `thefactoryfiveforum.com` for vehicle-specific experience only when it
+adds useful context, and (3) use general internet search only when the first two
+sources do not answer a non-safety-critical question. Preserve the query, result
+URL, source type, and retrieval date with any saved artifact. Forum results must
+be labeled **Factory Five community experience**, link to the original thread, and
+never override official documentation. Generic internet findings must be visibly
+labeled **General internet context — not Factory Five guidance** and carry a
+prominent caveat that they are last-resort, non-controlling material. Safety-
+critical ambiguity still stops at the surrounding official documentation and a
+direction to consult Factory Five; it never escalates to crowd or web consensus.
+
 ### 8. Hosted validation and publication (stretch goal)
 
 Run acceptance tests based on real Mk5 builder questions. Verify citation navigation, access control, rate limiting, mobile/garage usability, error states, source deletion/re-indexing, and production deployment.
@@ -152,6 +168,26 @@ builder sees the original source page, forum advice is clearly secondary, and
 saved chats/briefings keep work organized. Include a small visual flow from
 builder question to cited answer, but do not expose secrets, internal IDs, or
 unnecessary implementation detail.
+
+## Current next sequence
+
+1. Ensure every citation exposes each exact PDF page as its own clickable link;
+   validate this in the local Mk5 manual viewer.
+2. Complete the local retrieval evaluation set beyond the first IRS workflow,
+   including page citations, torque questions, sequencing questions, diagrams,
+   and required STOP & VERIFY abstentions.
+3. Complete the user-facing structured, source-linked torque interface using the
+   audited Mk5 dataset; visibly distinguish verified rows from any provisional,
+   configuration-dependent, or official-source-conflict rows. Do not surface the
+   two unresolved Factory Five IRS conflicts as automatic numeric answers.
+4. Implement the supplied briefing template as a true saved artifact, including
+   task setup, readiness, prerequisites, hold points, source links, and the
+   prescribed sections—not just a saved chat answer.
+5. Add curated Factory Five forum threads and task tags, then consider the gated
+   forum/general-web research workflow described above.
+6. Treat authentication, persistent database/blob storage, rate limits, and Vercel
+   deployment as the hosted-product stretch sequence after the local demo is
+   credible and evaluated.
 
 ## Inputs needed from the product owner
 

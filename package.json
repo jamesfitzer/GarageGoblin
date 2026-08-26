@@ -9,7 +9,14 @@
     "lint": "eslint .",
     "ingest:irs": "node --env-file=.env.local scripts/ingest.mjs",
     "extract:irs-pages": "swift scripts/extract-irs-pages.swift",
-    "ingest:irs-pages": "node --env-file=.env.local scripts/ingest-page-index.mjs"
+    "ingest:irs-pages": "node --env-file=.env.local scripts/ingest-page-index.mjs",
+    "extract:approved-pages": "swift scripts/extract-approved-pages.swift",
+    "audit:torque-sources": "swift scripts/audit-torque-candidates.swift",
+    "render:pdf-pages": "swift scripts/render-pdf-pages.swift",
+    "evaluate:torque": "node scripts/evaluate-torque-routes.mjs",
+    "ingest:approved-pages": "node --env-file=.env.local scripts/ingest-approved-page-index.mjs",
+    "evaluate:retrieval": "node --env-file=.env.local scripts/evaluate-retrieval.mjs",
+    "audit:vector-search": "node --env-file=.env.local scripts/audit-vector-search.mjs"
   },
   "engines": {
     "node": ">=22.0.0"
