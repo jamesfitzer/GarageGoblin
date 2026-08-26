@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
+import { Barlow_Condensed } from "next/font/google";
 import "./globals.css";
+
+const brandFont = Barlow_Condensed({
+  variable: "--font-garage-brand",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+});
 
 export const metadata: Metadata = {
   title: "Garage Goblin",
@@ -9,7 +16,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className={brandFont.variable}>{children}</body>
     </html>
   );
 }

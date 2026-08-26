@@ -41,6 +41,10 @@ All application routes, source documents, chats, and generated artifacts require
 
 Original PDFs are canonical source files held in private object storage. OpenAI Vector Stores are retrieval indexes only; retain a re-index and deletion path.
 
+## API cost discipline
+
+The product owner pays for the OpenAI API. Treat live model and File Search calls as a paid resource: prefer deterministic/local checks, targeted retrieval evaluations, and small representative test sets before broad reruns. Do not spend calls on repeated exploratory prompts, redundant A/B runs, or avoidable retries. Preserve safety and answer quality; cost discipline must never cause an unsupported answer or skipped validation of a safety-critical behavior.
+
 ## Repository workflow
 
 Incoming source material belongs in `sources/` until it is reviewed. Do not rename, move, alter, or ingest source files unless the user explicitly authorizes it.

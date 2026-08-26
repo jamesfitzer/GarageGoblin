@@ -61,10 +61,18 @@ function saveResults() {
 }
 
 for (const [id, prompt] of selectedCases) {
+  const workflowGuidance = /(?:2015\+?\s*(?:mustang\s*)?irs|independent rear suspension)/i.test(prompt)
+    ? "For this predefined Mk5 workflow, prioritize the 2015+ IRS installation procedure and torque material in Mk5 manual PDF pp. 104-141 and the applicable 2015+ Mustang IRS option instruction. Retrieve actual procedure pages, not the contents page."
+    : /front\s+(?:suspension|end|control\s+arm|spindle)/i.test(prompt)
+      ? "For this predefined Mk5 workflow, prioritize the actual front-suspension procedure in Mk5 manual PDF pp. 44-82: lower and upper control arms, pivot/endplay, coil-overs, optional sway bar, spindles, steering tie rods, and front brakes. Do not use the contents page as evidence of a procedure."
+      : "Retrieve the controlling task-procedure pages, not merely a table of contents.";
+  const input = /^prep me for\s*:/i.test(prompt)
+    ? `${prompt}\n\n${workflowGuidance}\n\nProduce a concise briefing with applicable prerequisites, sequence dependencies, hold points, and STOP & VERIFY items. Cite each factual item from the exact supporting pages. Hard constraint: do not include any numeric torque value, torque unit, or torque-table summary in the prose briefing. When available, Garage Goblin will append reviewed structured torque records separately; do not describe or summarize those records in prose.`
+    : prompt;
   const response = await client.responses.create({
     model: "gpt-5.4-mini",
     instructions,
-    input: prompt,
+    input,
     include: ["file_search_call.results"],
     tools: [{ type: "file_search", vector_store_ids: [process.env.OPENAI_FULL_PAGE_INDEX_VECTOR_STORE_ID], max_num_results: 8 }],
     store: false,

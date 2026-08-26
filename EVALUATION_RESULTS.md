@@ -72,3 +72,68 @@ and page, and never delegates a direct torque request to the language model.
 - **E-05:** must be rerun after the sequencing-question exception to the torque
   gate; it was previously intercepted by the first overly broad version of that
   guard.
+
+## Targeted paid re-run - pending final quality pass
+
+After billing was enabled, the actual local route was rerun for E-01, E-05, and
+E-07. It remains safe enough to avoid unsupported assembly authorization, but
+the briefing workflow is not yet demo-ready:
+
+- **E-01 IRS prep:** improved coverage of the install sequence and hold points,
+  but cited an unrelated chassis-harness page and still emitted an inline numeric
+  torque value despite the prep policy. The route now has both a stronger prompt
+  constraint and a local numeric-torque-line removal guard.
+- **E-05 final IRS torque/readiness:** safely abstains from inventing a complete
+  checklist, but retrieves only two hold points. It needs a task-specific
+  readiness template or a tighter retrieval query.
+- **E-07 front-suspension prep:** identifies useful sequencing and checkout
+  points, but cites an unrelated IRS torque-table page. It needs source-relevance
+  tightening before it is presented as a polished briefing.
+
+## Focused re-run after briefing safeguards
+
+Four targeted paid calls were used after billing was enabled; no broad rerun was
+performed.
+
+- **E-01 IRS prep — pass, with structured-torque follow-up:** The response now
+  stays on the 2015+ IRS option-instruction procedure (PDF pp. 3, 13, 14, 17,
+  and 19), gives the install order and supported hold points, and emits no
+  numeric torque in prose. The application now appends applicable reviewed
+  torque records separately, including blocked official conflicts.
+- **E-05 final IRS torque/readiness — constrained pass:** The approved sources
+  support a narrow answer: wait to finally torque the CV axle nut until after
+  e-brake-cable installation, and complete the cited brake-hose routing steps.
+  It correctly says it cannot verify a comprehensive all-fastener "final
+  torque" checklist. That is safer than inventing a generic checklist, but a
+  future curated workflow can add more manually verified hold points.
+- **E-07 front-suspension prep — improved, still partial:** A predefined
+  retrieval anchor produces a useful sequence and the later Mk5 checkout
+  hold-points without numeric torque prose. However, File Search still favored
+  the contents and checkout material over several requested front-suspension
+  procedure pages. Do not call this a polished, procedure-complete briefing
+  until curated page selection or a better task-specific retrieval layer is
+  added.
+
+## Dynamic garage-prep pipeline acceptance
+
+The broad one-query prep path was replaced with a generic, manual-driven flow:
+the planner reads the uploaded manual's contents/headings, returns each relevant
+subprocedure's controlling document and PDF start page, the server retrieves within
+those bounded section ranges, and a structured writer composes the garage card.
+No front-suspension task profile supplies the subprocedure list or answer.
+
+One final paid front-suspension run passed the targeted coverage check:
+
+- Planner-discovered areas: lower control arm, upper control arm, pivot/endplay,
+  upper-arm adjustment, front coil-over, optional sway bar, spindles, and tie rods.
+- All eight discovered start pages were retrieved; `missingSectionStarts` was empty.
+- The card cited exact Mk5 manual PDF pp. 44, 47, 51, 52, 60, 66, 70, and 73.
+- `Bring to the car` retained the p. 44 lower-arm tools and the p. 47 vise, thread
+  locker, 3/8-inch and 3/4-inch tools, torque wrench, and optional Chrysler
+  upper-ball-joint tool.
+- Bounded section ranges eliminated the unrelated IRS pages and distant p. 567 OCR
+  bleed observed during intermediate tuning.
+
+The next quality check is to run the same generic flow on IRS and one genuinely
+ad-hoc task such as fuel-tank installation. Curated tasks remain UI shortcuts and
+evaluation fixtures, not required retrieval knowledge.

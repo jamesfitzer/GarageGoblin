@@ -16,6 +16,7 @@
     "evaluate:torque": "node scripts/evaluate-torque-routes.mjs",
     "ingest:approved-pages": "node --env-file=.env.local scripts/ingest-approved-page-index.mjs",
     "evaluate:retrieval": "node --env-file=.env.local scripts/evaluate-retrieval.mjs",
+    "evaluate:forum-workflow": "node --env-file=.env.local scripts/evaluate-forum-workflow.mjs",
     "audit:vector-search": "node --env-file=.env.local scripts/audit-vector-search.mjs"
   },
   "engines": {
