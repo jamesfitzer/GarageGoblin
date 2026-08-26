@@ -1,0 +1,34 @@
+{
+  "name": "garage-goblin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint .",
+    "ingest:irs": "node --env-file=.env.local scripts/ingest.mjs",
+    "extract:irs-pages": "swift scripts/extract-irs-pages.swift",
+    "ingest:irs-pages": "node --env-file=.env.local scripts/ingest-page-index.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "next": "^16.3.3",
+    "openai": "^7.5.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.3.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "eslint": "^10.9.1",
+    "eslint-config-next": "^16.3.3",
+    "postcss": "^8.5.26",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
+  }
+}

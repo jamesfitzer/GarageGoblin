@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+.DS_Store
+generated/
+
+# Owner-private build material: retain locally, never commit by default.
+sources/James Fitzer MK5 Complete Roadster Kit 0225114.pdf
+sources/build-spec.md
