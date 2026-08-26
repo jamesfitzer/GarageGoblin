@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { initialSources } from "@/lib/sources";
+import { torqueSpecs, type TorqueSpec } from "@/lib/torque-specs";
 
 type Citation = { id: string; title: string; authority: string; url: string; page?: number };
 type BriefingResponse = { answer: string; citations: Citation[]; warning?: string };
@@ -25,7 +27,7 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [briefings, setBriefings] = useState<SavedBriefing[]>([]);
   const [activeBriefingId, setActiveBriefingId] = useState<string | null>(null);
-  const [view, setView] = useState<"chat" | "briefings">("chat");
+  const [view, setView] = useState<"chat" | "briefings" | "torque">("chat");
   const [phase, setPhase] = useState<SavedBriefing["phase"]>("Assembly");
   const [readiness, setReadiness] = useState<SavedBriefing["readiness"]>("Ready after checks");
   const [loading, setLoading] = useState(false);
@@ -112,6 +114,7 @@ export default function Home() {
       <nav className="workspace-tabs" role="tablist" aria-label="Garage Goblin workspace">
         <button className={view === "chat" ? "active" : ""} type="button" onClick={() => setView("chat")}>Garage chat</button>
         <button className={view === "briefings" ? "active" : ""} type="button" onClick={() => setView("briefings")}>Build briefings <span>{briefings.length}</span></button>
+        <button className={view === "torque" ? "active" : ""} type="button" onClick={() => setView("torque")}>Torque specs <span>{torqueSpecs.length}</span></button>
       </nav>
       <section className="sidebar-section"><div className="sidebar-heading"><h2>Conversations</h2><span>{chats.length}</span></div>
         <div className="chat-list">{chats.map((chat) => <button className={chat.id === activeChatId ? "chat-row active" : "chat-row"} type="button" key={chat.id} onClick={() => { setActiveChatId(chat.id); setView("chat"); }}><strong>{chat.title}</strong><span>{chat.messages.length ? `${chat.messages.length} messages · ${formatDate(chat.updatedAt)}` : "Empty conversation"}</span></button>)}</div>
@@ -125,7 +128,7 @@ export default function Home() {
       <button className="reset-workspace" type="button" onClick={resetLocalWorkspace}>Reset local demo workspace</button>
     </aside>
     <section className="app-main">
-      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : "Build briefings"}</h1></div><span className="status">Local-only workspace</span></header>
+      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : "Torque specs"}</h1></div><span className="status">Local-only workspace</span></header>
     {view === "chat" ? <section className="chat-workspace">
         <div className="conversation" aria-live="polite" ref={conversationRef}>
           {!activeChat?.messages.length && <p className="empty-state">Ask a manual question. This conversation will remain here on this browser.</p>}
@@ -146,7 +149,7 @@ export default function Home() {
           <button type="button" onClick={() => saveBriefing(latestAnswer)}>Save briefing</button>
         </div>}</div>
       </section>
-     : <section className="briefing-grid">
+     : view === "briefings" ? <section className="briefing-grid">
       <aside className="panel briefing-list"><div className="panel-heading"><h2>Saved build briefings</h2><span className="status">{briefings.length} saved</span></div>
         {!briefings.length && <p className="empty-state">Save an answer from Garage chat to make your first workbench briefing.</p>}
         {briefings.map((briefing) => <button type="button" key={briefing.id} className={briefing.id === activeBriefingId ? "briefing-row active" : "briefing-row"} onClick={() => setActiveBriefingId(briefing.id)}><strong>{briefing.title}</strong><span>{briefing.phase} · {briefing.readiness}</span><small>{formatDate(briefing.createdAt)}</small></button>)}
@@ -155,8 +158,54 @@ export default function Home() {
         <p className="briefing-question">{activeBriefing.question}</p><div className="answer">{activeBriefing.content}</div>{activeBriefing.warning && <div className="notice">{activeBriefing.warning}</div>}
         <div className="briefing-meta"><span>Phase: <strong>{activeBriefing.phase}</strong></span><span>Saved {formatDate(activeBriefing.createdAt)}</span></div><h3>Supporting source pages</h3><CitationCards citations={activeBriefing.citations} />
       </> : <div className="empty-state"><h2>No briefing selected</h2><p>Saved manual-grounded answers will collect here so you can switch jobs without losing your place.</p><button type="button" onClick={() => setView("chat")}>Go to garage chat</button></div>}</section>
-    </section>}</section>
+    </section> : <TorqueSpecsWorkspace />}</section>
   </main>;
+}
+
+type TorqueFilter = "all" | "front" | "irs" | "solid-axle" | "brakes" | "driveline" | "general";
+
+const torqueFilters: { id: TorqueFilter; label: string }[] = [
+  { id: "all", label: "All specs" },
+  { id: "front", label: "Front suspension" },
+  { id: "irs", label: "2015+ IRS" },
+  { id: "solid-axle", label: "Solid axle" },
+  { id: "brakes", label: "Brakes" },
+  { id: "driveline", label: "Driveline & wheels" },
+  { id: "general", label: "General hardware" },
+];
+
+function TorqueSpecsWorkspace() {
+  const [filter, setFilter] = useState<TorqueFilter>("all");
+  const visibleSpecs = torqueSpecs.filter((spec) => matchesTorqueFilter(spec, filter));
+  const verifiedCount = torqueSpecs.filter((spec) => spec.status === "verified").length;
+  const blockedCount = torqueSpecs.length - verifiedCount;
+
+  return <section className="torque-workspace">
+    <div className="torque-intro"><div><div className="eyebrow">Structured Factory Five data</div><h2>Numbers with receipts, not goblin vibes.</h2><p>Every row is linked to a source PDF page and requires its listed configuration. The chat cannot invent a torque value outside this reviewed data.</p></div><div className="torque-summary"><strong>{verifiedCount} verified</strong><span>{blockedCount} STOP &amp; VERIFY</span></div></div>
+    {blockedCount > 0 && <div className="torque-conflict"><strong>Official-source conflicts are blocked.</strong><span>Two IRS entries disagree across Factory Five documents. They remain visible for transparency but are never served as automatic numeric answers.</span></div>}
+    <div className="torque-filters" aria-label="Torque specification filters">{torqueFilters.map((item) => <button type="button" key={item.id} className={filter === item.id ? "active" : ""} onClick={() => setFilter(item.id)}>{item.label}</button>)}</div>
+    <div className="torque-table-wrap"><table className="torque-table"><thead><tr><th>Component</th><th>Torque</th><th>Applies to</th><th>Source</th><th>Status</th></tr></thead><tbody>{visibleSpecs.map((spec) => <TorqueSpecRow key={spec.id} spec={spec} />)}</tbody></table></div>
+    <p className="torque-footnote">General-hardware rows apply only when the manual gives no component-specific value. A component-specific source always wins.</p>
+  </section>;
+}
+
+function matchesTorqueFilter(spec: TorqueSpec, filter: TorqueFilter) {
+  const searchable = `${spec.component} ${spec.configuration.join(" ")}`.toLowerCase();
+  if (filter === "all") return true;
+  if (filter === "front") return searchable.includes("front");
+  if (filter === "irs") return searchable.includes("irs");
+  if (filter === "solid-axle") return searchable.includes("solid axle") || searchable.includes("3-link");
+  if (filter === "brakes") return searchable.includes("brake") || searchable.includes("caliper");
+  if (filter === "driveline") return /driveshaft|hub|wheel|lug|cv axle|oil.filter/.test(searchable);
+  return searchable.includes("general");
+}
+
+function TorqueSpecRow({ spec }: { spec: TorqueSpec }) {
+  const source = initialSources.find((item) => item.id === spec.source.sourceId);
+  const sourceTitle = source?.title ?? spec.source.file;
+  const sourceUrl = source ? `/api/sources/${source.id}#page=${spec.source.page}` : "#";
+  const value = spec.newtonMeters ? `${spec.newtonMeters} Nm · ${spec.lbFt} lb-ft` : `${spec.lbFt} lb-ft`;
+  return <tr className={spec.status === "needs-review" ? "needs-review" : ""}><td><strong>{spec.component}</strong>{spec.notes && <small>{spec.notes}</small>}</td><td><strong>{spec.status === "verified" ? value : "STOP & VERIFY"}</strong>{spec.additionalOperation && <small>{spec.additionalOperation}</small>}</td><td>{spec.configuration.map((item) => <span className="config-chip" key={item}>{item}</span>)}</td><td><a href={sourceUrl} target="_blank" rel="noreferrer">{sourceTitle}<small>PDF p. {spec.source.page} · {spec.source.section}</small></a></td><td><span className={spec.status === "verified" ? "torque-status verified" : "torque-status blocked"}>{spec.status === "verified" ? "Verified" : "Blocked"}</span></td></tr>;
 }
 
 function CitationCards({ citations }: { citations: Citation[] }) {
@@ -170,6 +219,7 @@ function CitationCards({ citations }: { citations: Citation[] }) {
   return <>{[...grouped.values()].map(({ citation, pages }) => {
     const sortedPages = pages.sort((a, b) => a - b);
     const pageLabel = sortedPages.length ? ` · PDF p${sortedPages.length === 1 ? "." : "p."} ${sortedPages.join(", ")}` : " · page mapping pending";
-    return <div className="source-card" key={citation.url.replace(/#page=\d+$/, "")}><div><strong>{citation.title}</strong><br /><span className="status">{citation.authority}{pageLabel}</span></div><a href={citation.url} target="_blank" rel="noreferrer">Open source</a></div>;
+    const sourceUrl = citation.url.replace(/#page=\d+$/, "");
+    return <div className="source-card" key={sourceUrl}><div><strong>{citation.title}</strong><br /><span className="status">{citation.authority}{pageLabel}</span>{sortedPages.length > 0 && <div className="page-links">{sortedPages.map((page) => <a href={`${sourceUrl}#page=${page}`} target="_blank" rel="noreferrer" key={page}>PDF p. {page}</a>)}</div>}</div><a className="open-document" href={sourceUrl} target="_blank" rel="noreferrer">Open document</a></div>;
   })}</>;
 }

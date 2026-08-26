@@ -2,7 +2,13 @@ export type SourceId =
   | "mk5-roadster-manual"
   | "2015-mustang-irs"
   | "2015-irs-swaybar"
-  | "koni-irs-coil-overs";
+  | "koni-irs-coil-overs"
+  | "koni-front-coil-overs"
+  | "seat-track-mk5"
+  | "pedalbox-wilwood"
+  | "chassis-harness-rev-w"
+  | "glovebox"
+  | "wind-wings";
 
 export type Source = {
   id: SourceId;
@@ -41,6 +47,48 @@ export const initialSources: Source[] = [
     authority: "Factory Five option instruction",
     initialPage: 1,
   },
+  {
+    id: "koni-front-coil-overs",
+    filename: "14676-koni-front-coil-overs.pdf",
+    title: "Koni Front Coil-Over Shock Assembly",
+    authority: "Factory Five option instruction",
+    initialPage: 1,
+  },
+  {
+    id: "seat-track-mk5",
+    filename: "SEAT-TRACK-Mk5-REV-A.pdf",
+    title: "Mk5 Seat Track Instructions",
+    authority: "Factory Five option instruction",
+    initialPage: 1,
+  },
+  {
+    id: "pedalbox-wilwood",
+    filename: "PEDALBOX-WILWOOD-rev-H.pdf",
+    title: "Wilwood Pedal Box Instructions",
+    authority: "Factory Five option instruction",
+    initialPage: 1,
+  },
+  {
+    id: "chassis-harness-rev-w",
+    filename: "Chassis-Harness-rev-W.pdf",
+    title: "Chassis Harness Instructions (Rev W)",
+    authority: "Factory Five option instruction",
+    initialPage: 1,
+  },
+  {
+    id: "glovebox",
+    filename: "Glovebox.pdf",
+    title: "Glovebox Installation Instructions",
+    authority: "Factory Five option instruction",
+    initialPage: 1,
+  },
+  {
+    id: "wind-wings",
+    filename: "12049-wind-wings.pdf",
+    title: "Wind Wings Instructions",
+    authority: "Factory Five option instruction",
+    initialPage: 1,
+  },
 ];
 
 export const sourceByFilename = new Map(
@@ -51,7 +99,7 @@ export function getSourceFromRetrievalFilename(filename: string) {
   const direct = sourceByFilename.get(filename);
   if (direct) return { source: direct, page: undefined };
 
-  const match = filename.match(/^(mk5-roadster-manual|2015-mustang-irs|2015-irs-swaybar|koni-irs-coil-overs)-p(\d{4})\.txt$/);
+  const match = filename.match(/^(.+)-p(\d{4})\.txt$/);
   if (!match) return undefined;
 
   const source = initialSources.find((item) => item.id === match[1]);
