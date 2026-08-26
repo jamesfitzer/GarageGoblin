@@ -6,12 +6,13 @@ import { torqueSpecs, type TorqueSpec } from "@/lib/torque-specs";
 import type { BriefingArtifact } from "@/lib/briefing-template";
 
 type Citation = { id: string; title: string; authority: string; url: string; page?: number };
+type WebResearchSource = { title: string; url: string; sourceType: "Factory Five Forum" | "General web" };
 type TorqueSupplement = { title: string; specs: TorqueSpec[] };
 type ForumResearch = { answer: string; sources: { title: string; url: string }[]; warning?: string };
-type BriefingResponse = { answer: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact };
-type Message = { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; createdAt: string };
+type BriefingResponse = { answer: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; webSources?: WebResearchSource[] };
+type Message = { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; createdAt: string };
 type Chat = { id: string; title: string; createdAt: string; updatedAt: string; messages: Message[] };
-type SavedBriefing = { id: string; chatId: string; title: string; question: string; content: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; phase: "Inventory" | "Mock-up" | "Assembly" | "Setup" | "Commissioning"; readiness: "Ready" | "Ready after checks" | "Stop pending resolution"; createdAt: string };
+type SavedBriefing = { id: string; chatId: string; title: string; question: string; content: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; phase: "Inventory" | "Mock-up" | "Assembly" | "Setup" | "Commissioning"; readiness: "Ready" | "Ready after checks" | "Stop pending resolution"; createdAt: string };
 type StoredWorkspace = { chats: Chat[]; activeChatId: string; briefings: SavedBriefing[] };
 
 const storageKey = "garage-goblin.local-workspace.v1";
@@ -23,6 +24,7 @@ function newId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random()
 function makeChat(): Chat { const now = new Date().toISOString(); return { id: newId("chat"), title: "New garage conversation", createdAt: now, updatedAt: now, messages: [] }; }
 function formatDate(date: string) { return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date)); }
 function normalizeBriefingQuestion(question: string) { return question.trim().replace(/\s+/g, " ").toLowerCase(); }
+function requestsExternalResearch(question: string) { return /\b(?:search|look\s*up|check|see\s+what)\b[\s\S]{0,80}\b(?:forum|forums|google|web|internet)\b/i.test(question); }
 
 export default function Home() {
   const [question, setQuestion] = useState(quickPrompts[0]);
@@ -112,10 +114,12 @@ export default function Home() {
     appendMessage(activeChat.id, { id: newId("message"), role: "user", content: trimmedQuestion, createdAt: askedAt }, activeChat.messages.length === 0 ? trimmedQuestion : undefined);
     setQuestion(""); setLoading(true);
     try {
-      const response = await fetch("/api/briefing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: trimmedQuestion }) });
+      const webResearch = requestsExternalResearch(trimmedQuestion);
+      const priorContext = webResearch ? activeChat.messages.slice(-4).map((message) => `${message.role}: ${message.content}`).join("\n\n") : undefined;
+      const response = await fetch("/api/briefing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: trimmedQuestion, webResearch, context: priorContext }) });
       const body = (await response.json()) as BriefingResponse & { error?: string };
       if (!response.ok) throw new Error(body.error ?? "The Goblin lost the trail.");
-      const answer: Message = { id: newId("message"), role: "assistant", content: body.answer, citations: body.citations, warning: body.warning, torqueSupplement: body.torqueSupplement, briefingArtifact: body.briefingArtifact, createdAt: new Date().toISOString() };
+      const answer: Message = { id: newId("message"), role: "assistant", content: body.answer, citations: body.citations, warning: body.warning, torqueSupplement: body.torqueSupplement, briefingArtifact: body.briefingArtifact, webSources: body.webSources, createdAt: new Date().toISOString() };
       appendMessage(activeChat.id, answer);
       if (/^prep me for\s*:/i.test(trimmedQuestion)) {
         const briefing: SavedBriefing = { id: newId("briefing"), chatId: activeChat.id, title: trimmedQuestion, question: trimmedQuestion, content: answer.content, citations: answer.citations ?? [], warning: answer.warning, torqueSupplement: answer.torqueSupplement, briefingArtifact: answer.briefingArtifact, forumResearch: answer.forumResearch, phase: "Assembly", readiness: answer.briefingArtifact?.readiness ?? "Ready after checks", createdAt: new Date().toISOString() };
@@ -136,7 +140,7 @@ export default function Home() {
   function saveBriefing(message: Message) {
     if (!activeChat || message.role !== "assistant") return;
     const questionMessage = [...activeChat.messages].reverse().find((item) => item.role === "user");
-    const briefing: SavedBriefing = { id: newId("briefing"), chatId: activeChat.id, title: questionMessage?.content ?? activeChat.title, question: questionMessage?.content ?? "Garage Goblin briefing", content: message.content, citations: message.citations ?? [], warning: message.warning, torqueSupplement: message.torqueSupplement, briefingArtifact: message.briefingArtifact, forumResearch: message.forumResearch, phase, readiness, createdAt: new Date().toISOString() };
+    const briefing: SavedBriefing = { id: newId("briefing"), chatId: activeChat.id, title: questionMessage?.content ?? activeChat.title, question: questionMessage?.content ?? "Garage Goblin briefing", content: message.content, citations: message.citations ?? [], warning: message.warning, torqueSupplement: message.torqueSupplement, briefingArtifact: message.briefingArtifact, forumResearch: message.forumResearch, webSources: message.webSources, phase, readiness, createdAt: new Date().toISOString() };
     setBriefings((current) => [briefing, ...current]); setActiveBriefingId(briefing.id); setView("briefings");
   }
 
@@ -175,6 +179,7 @@ export default function Home() {
             {message.warning && <div className="notice">{message.warning}</div>}
             {message.torqueSupplement && <BriefingTorqueSupplement supplement={message.torqueSupplement} />}
             <CitationCards citations={message.citations ?? []} />
+            {message.webSources && <WebResearchSources sources={message.webSources} />}
           </article>; })}
           {loading && <div className="searching"><span aria-hidden="true">⌁</span>The Goblin is checking the manuals…</div>}
         </div>
@@ -193,11 +198,16 @@ export default function Home() {
         {briefings.map((briefing) => <button type="button" key={briefing.id} className={briefing.id === activeBriefingId ? "briefing-row active" : "briefing-row"} onClick={() => setActiveBriefingId(briefing.id)}><strong>{briefing.title}</strong><span>{briefing.phase} · {briefing.readiness}</span><small>{formatDate(briefing.createdAt)}</small></button>)}
       </aside>
       <section className="panel briefing-detail">{activeBriefing ? <><div className="panel-heading"><div><div className="eyebrow">Saved workbench artifact</div><h2>{activeBriefing.title}</h2></div><span className="readiness">{activeBriefing.readiness}</span></div>
-        <p className="briefing-question">{activeBriefing.question}</p>{activeBriefing.briefingArtifact ? <BriefingArtifactView artifact={activeBriefing.briefingArtifact} forumResearch={activeBriefing.forumResearch} onResearchForum={() => { const message = findBriefingMessage(activeBriefing); if (message) researchForum(message.chatId, message.messageId, activeBriefing.question); }} researchingForum={forumResearchingMessageId !== null} /> : <MarkdownContent content={activeBriefing.content} />}{activeBriefing.warning && <div className="notice">{activeBriefing.warning}</div>}{activeBriefing.torqueSupplement && <BriefingTorqueSupplement supplement={activeBriefing.torqueSupplement} />}
+        <p className="briefing-question">{activeBriefing.question}</p>{activeBriefing.briefingArtifact ? <BriefingArtifactView artifact={activeBriefing.briefingArtifact} forumResearch={activeBriefing.forumResearch} onResearchForum={() => { const message = findBriefingMessage(activeBriefing); if (message) researchForum(message.chatId, message.messageId, activeBriefing.question); }} researchingForum={forumResearchingMessageId !== null} /> : <MarkdownContent content={activeBriefing.content} />}{activeBriefing.warning && <div className="notice">{activeBriefing.warning}</div>}{activeBriefing.torqueSupplement && <BriefingTorqueSupplement supplement={activeBriefing.torqueSupplement} />}{activeBriefing.webSources && <WebResearchSources sources={activeBriefing.webSources} />}
         <div className="briefing-meta"><span>Phase: <strong>{activeBriefing.phase}</strong></span><span>Saved {formatDate(activeBriefing.createdAt)}</span></div><h3>Supporting source pages</h3><CitationCards citations={activeBriefing.citations} />
       </> : <div className="empty-state"><h2>No briefing selected</h2><p>Saved manual-grounded answers will collect here so you can switch jobs without losing your place.</p><button type="button" onClick={() => setView("chat")}>Go to garage chat</button></div>}</section>
     </section> : <TorqueSpecsWorkspace />}</section>
   </main>;
+}
+
+function WebResearchSources({ sources }: { sources: WebResearchSource[] }) {
+  if (!sources.length) return null;
+  return <section className="web-research-sources"><div className="eyebrow">External research sources</div>{sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer"><span>{source.sourceType === "Factory Five Forum" ? "Forum" : "Web"}</span>{source.title}</a>)}</section>;
 }
 
 function GarageBootSequence({ onDismiss }: { onDismiss: () => void }) {

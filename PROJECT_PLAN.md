@@ -231,9 +231,11 @@ unnecessary implementation detail.
 2. Validate selected-build scoping on IRS and fuel-tank installation: core staging
    lists must exclude selected later procedures, and a vendor-document gap must
    become STOP & VERIFY rather than a substituted manual configuration.
-3. Keep Factory Five Forum research as a separate, explicit user action. It must
-   be domain-restricted, clearly labeled as community experience, capped to useful
-   thread cards, saved with the briefing, and never block manual-first output.
+3. Keep external research as a separate, explicit user action: a chat request such
+   as “search the forums and web” triggers one Factory Five Forum-only pass and a
+   separately labeled, last-resort general-web pass. It must be saved with any
+   resulting briefing, never block manual-first output, and never turn community
+   or generic-web consensus into a safety-critical instruction.
 4. Tune the concise garage-card presentation with representative builder tasks,
    then write and rehearse the class-demo script and fallback path.
 5. Treat authentication, persistent database/blob storage, rate limits, and Vercel
