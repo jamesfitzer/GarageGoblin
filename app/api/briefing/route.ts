@@ -1,9 +1,21 @@
 import OpenAI from "openai";
 import { garageGoblinInstructions } from "@/lib/garage-goblin-instructions";
 import { getSourceFromRetrievalFilename } from "@/lib/sources";
+import { getBriefingTorqueSupplement } from "@/lib/briefing-torque";
+import { buildDynamicPrepCard } from "@/lib/prep-evidence";
+import { buildBriefingArtifact } from "@/lib/briefing-template";
 import { getVerifiedTorqueResponse } from "@/lib/verified-torque";
 
 export const runtime = "nodejs";
+
+type ForumSource = { title: string; url: string };
+
+function removeNumericTorqueLines(answer: string) {
+  const numericTorque = /\b\d+(?:\s*[-–]\s*\d+)?\s*(?:n\.?m\.?|newton[-\s]?meters?|lb\.?[-\s]?ft|ft\.?[-\s]?lb)\b/i;
+  const lines = answer.split("\n");
+  const kept = lines.filter((line) => !numericTorque.test(line));
+  return { answer: kept.join("\n").replace(/\n{3,}/g, "\n\n").trim(), removed: kept.length !== lines.length };
+}
 
 export async function POST(request: Request) {
   if (!process.env.OPENAI_API_KEY) {
@@ -14,24 +26,99 @@ export async function POST(request: Request) {
     return Response.json({ error: "A Vector Store ID is missing. Run the approved ingestion script, add the printed ID to .env.local, then restart the dev server." }, { status: 503 });
   }
 
-  const body = (await request.json()) as { question?: unknown };
+  const body = (await request.json()) as { question?: unknown; forumResearch?: unknown };
   const question = typeof body.question === "string" ? body.question.trim() : "";
   if (!question || question.length > 1_500) return Response.json({ error: "Provide a question up to 1,500 characters." }, { status: 400 });
+
+  const isForumResearch = body.forumResearch === true;
+  if (isForumResearch) {
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    let response;
+    try {
+      response = await client.responses.create({
+        model: "gpt-5.4-mini",
+        instructions: `You are performing a separate community-research pass for Garage Goblin. Search only the Factory Five Forum for the exact Mk5 Roadster task in the user question. Return at most three threads, and include a thread only if it describes the procedure or adds a concrete, configuration-relevant gotcha. Label every takeaway "Factory Five community experience — not Factory Five guidance." Never use a forum thread to authorize drilling, machining, a torque value, or a deviation from Factory Five documentation. If official documentation is absent or conflicts with community advice, say Factory Five controls. If no strong relevant thread is found, say so plainly. Be concise.`,
+        input: question,
+        tools: [{ type: "web_search", filters: { allowed_domains: ["thefactoryfiveforum.com"] }, search_context_size: "low" }],
+        tool_choice: "required",
+        include: ["web_search_call.action.sources"],
+        store: false,
+      });
+    } catch (error) {
+      const status = typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : 500;
+      const message = status === 429
+        ? "Garage Goblin has reached its temporary OpenAI request limit. Please retry shortly."
+        : "Garage Goblin could not search the Factory Five Forum right now. Please retry.";
+      return Response.json({ error: message }, { status });
+    }
+
+    const citedUrls = response.output
+      .filter((item) => item.type === "message")
+      .flatMap((item) => item.content)
+      .filter((content) => content.type === "output_text")
+      .flatMap((content) => content.annotations)
+      .filter((annotation) => annotation.type === "url_citation")
+      .map((annotation) => annotation.url)
+      .filter((url): url is string => Boolean(url));
+    const searchedUrls = response.output
+      .filter((item) => item.type === "web_search_call")
+      .flatMap((item) => {
+        const searchCall = item as unknown as { action?: { sources?: Array<{ url?: string }> }; sources?: Array<{ url?: string }> };
+        return searchCall.action?.sources ?? searchCall.sources ?? [];
+      })
+      .map((source) => source.url)
+      .filter((url): url is string => Boolean(url));
+    const sourceUrls = (citedUrls.length ? citedUrls : searchedUrls).filter((url, index, all) => all.indexOf(url) === index).slice(0, 3);
+    const sources: ForumSource[] = sourceUrls.map((url) => ({ title: "Factory Five Forum thread", url }));
+
+    return Response.json({
+      forumResearch: {
+        answer: response.output_text,
+        sources,
+        warning: "Factory Five community experience is contextual only. Factory Five documentation controls.",
+      },
+    });
+  }
 
   const verifiedTorqueResponse = getVerifiedTorqueResponse(question);
   if (verifiedTorqueResponse) return Response.json(verifiedTorqueResponse);
 
-  const input = /^prep me for\s*:/i.test(question)
-    ? `${question}\n\nRetrieve the controlling task-procedure pages, not merely a table of contents. Produce a concise briefing with applicable prerequisites, sequence dependencies, hold points, and STOP & VERIFY items. Cite each factual item from the exact supporting pages.`
-    : question;
-
+  const isPrepRequest = /^prep me for\s*:/i.test(question);
+  const torqueSupplement = isPrepRequest ? getBriefingTorqueSupplement(question) : undefined;
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  if (isPrepRequest) {
+    try {
+      const prep = await buildDynamicPrepCard(client, vectorStoreId, question);
+      const preparedAnswer = removeNumericTorqueLines(prep.answer);
+      return Response.json({
+        answer: preparedAnswer.answer,
+        citations: prep.citations,
+        torqueSupplement,
+        briefingArtifact: buildBriefingArtifact(question, preparedAnswer.answer),
+        warning: preparedAnswer.removed
+          ? "Model-generated numeric torque content was removed. Any reviewed torque records for this task appear separately below."
+          : prep.warning,
+        retrieval: {
+          procedureAreas: prep.procedureAreas,
+          searches: prep.searches,
+          missingSectionStarts: prep.missingSectionStarts,
+        },
+      });
+    } catch (error) {
+      const status = typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : 500;
+      const message = status === 429
+        ? "Garage Goblin has reached its temporary OpenAI request limit. Please retry shortly."
+        : "Garage Goblin could not assemble a grounded prep card right now. Please retry.";
+      return Response.json({ error: message }, { status });
+    }
+  }
+
   let response;
   try {
     response = await client.responses.create({
       model: "gpt-5.4-mini",
       instructions: garageGoblinInstructions,
-      input,
+      input: question,
       include: ["file_search_call.results"],
       tools: [{ type: "file_search", vector_store_ids: [vectorStoreId], max_num_results: 8 }],
       store: false,
@@ -64,13 +151,15 @@ export async function POST(request: Request) {
       url: `/api/sources/${source.id}#page=${page ?? source.initialPage}`,
     }));
 
+  const citationWarning = citations.length === 0
+    ? "No exact source citation was returned with this answer. Treat it as unverified and consult Factory Five documentation."
+    : citations.some((citation) => !citation.page)
+      ? "Some retrieved material has not yet been page-mapped. Do not treat an unmapped source card as an exact page citation."
+      : undefined;
+
   return Response.json({
     answer: response.output_text,
     citations,
-    warning: citations.length === 0
-      ? "No exact source citation was returned with this answer. Treat it as unverified and consult Factory Five documentation."
-      : citations.some((citation) => !citation.page)
-        ? "Some retrieved material has not yet been page-mapped. Do not treat an unmapped source card as an exact page citation."
-        : undefined,
+    warning: citationWarning,
   });
 }

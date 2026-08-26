@@ -1,8 +1,10 @@
 # Garage Goblin Initial Task Catalog
 
-The first release should offer a small, legible task list rather than an open-ended
-task taxonomy. Each task can accept a Fast or Deep briefing path; the manual remains
-the baseline procedure.
+The first release should offer a small, legible suggested task list without making
+that list a retrieval dependency. Builders may also request an ad-hoc task. The
+planner discovers controlling sections and PDF start pages from the uploaded manuals,
+and each task produces a concise garage-prep card; the manual remains the baseline
+procedure and source of detailed instructions.
 
 | Task | Build phase | Primary manual starting point | Supporting sources / notes | Release order |
 | --- | --- | --- | --- | --- |
@@ -26,16 +28,22 @@ PDF-page navigation.
 
 ### Fast briefing target
 
-Return a concise readiness decision, primary manual pages, required delivered-part
-checks, tool/assistance needs, non-negotiable stop conditions, relevant structured
-torque rows, and source links.
+Return a concise workbench card with task-specific tools/assistance, delivered-part
+checks, high-level sequence, concrete manual gotchas, close-up checks, non-negotiable
+stop conditions, relevant structured torque rows, and source links. Do not produce
+a contents-page summary or repeat manual-page navigation in the card.
 
-### Deep briefing target
+### Evidence profile requirement
 
-Use the supplied template to provide the manual baseline, exact-project
-applicability, documented gaps, labeled field lessons, supplemental hold points,
-garage checklist, durable artifact links, and residual uncertainty. Do not repeat
-an adequate manual procedure.
+Before generating this card, retrieve separate evidence for the IRS procedure,
+tools/parts/assistance, mount-orientation and CV/arm hold points, close-up/final
+checks, and reviewed torque data. A missing evidence category must be surfaced as a
+gap rather than filled from generic automotive knowledge.
+
+The front-suspension task is the first validation profile for this pipeline. Its
+retrieved evidence must include the manual's lower-control-arm and upper-control-arm
+tools/parts sections (PDF pp. 44 and 47) before it can claim to provide a complete
+`Bring to the car` list.
 
 ### Initial task controls
 

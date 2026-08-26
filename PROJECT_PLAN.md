@@ -20,8 +20,8 @@ software or novelty cartoon branding.
 
 - One predefined Factory Five Mk5 Roadster demo build.
 - Factory Five manuals as primary source material.
-- Predefined build-task list derived from the approved manuals.
-- Saved briefings based on a user-supplied template.
+- Suggested build-task list derived from the approved manuals, plus ad-hoc prep requests.
+- Saved concise garage-prep cards; the manual remains the deep procedure.
 - A Build Briefings tab that lists and reopens previously created briefings, so a
   builder can return to interrupted work while waiting on parts, tools, or answers.
 - Structured, manually entered torque values for the demo.
@@ -89,9 +89,9 @@ classify every source as controlling, applicable secondary, conditional/referenc
 only, curated community evidence, or owner-private material. Record its intended
 access scope before ingestion. The Mk5 manual is currently Rev 1P (December 2025).
 
-Collect the supplied torque list, briefing template, initial build specification,
-decision register, and curated forum links. Derive and approve a predefined Mk5
-task list from the manuals. Keep the build specification, purchase/order material,
+Collect the supplied torque list, initial build specification, decision register,
+and curated forum links. Derive and approve a suggested Mk5 task list from the
+manuals for fast demo actions. Keep the build specification, purchase/order material,
 and owner-specific decisions private unless explicitly approved for demo users.
 
 ### 2. Local retrieval and citation proof
@@ -124,11 +124,65 @@ Build chat creation and history for the Mk5 demo build. Require cited answers, e
 
 ### 6. Build briefings and artifacts
 
-Implement the approved briefing template, saved briefing records, a Build Briefings
+Implement compact garage-prep cards, saved briefing records, a Build Briefings
 tab, structured torque interface, build-spec display, and decision-register display.
 The Build Briefings tab must support returning to previously generated work with
 its readiness state, build phase, source links, unresolved hold points, and creation
 date visible at a glance. Preserve sources and unresolved questions in each artifact.
+
+### 6a. Evidence-first garage-prep pipeline
+
+Do not ask one broad File Search query to summarize a multi-page mechanical task.
+Before generating a garage-prep card, collect task evidence in distinct categories:
+
+- procedure and sequencing;
+- required tools, materials, parts, and assistance;
+- non-obvious manual warnings and configuration gates;
+- checks before access is concealed, final retention, or first load; and
+- applicable reviewed torque records.
+
+The default flow must not depend on manually authored task profiles. First use the
+model to inspect the uploaded manuals' tables of contents and headings, identify
+the controlling document and PDF start page for each relevant subprocedure, then
+retrieve evidence from those bounded section ranges. For example, front suspension
+should discover lower arms, upper arms, pivot/endplay, coil-overs, optional sway
+bar, spindles, tie rods, and brakes from the manual itself. Curated tasks may cache
+or validate a discovered plan for demo speed, but they are optimization and eval
+fixtures—not product knowledge required for an ad-hoc task or a newly uploaded manual.
+
+For the Mk5 demo, the planner also receives a compact, source-reviewed build
+configuration context derived from the private build specification and order/receipt
+evidence: selected versus unselected variants, selected components, and known
+vendor-document gaps. This context scopes a card into **core work now** and
+**selected follow-on work**; it never supplies a procedure, tool, or torque value.
+In a full product, the same structure is created from the builder's project choices
+and delivered-part verification rather than hard-coded demo facts.
+
+Run the narrow section searches in parallel, preserve the best hit for every
+discovered procedure area before filling remaining evidence by score, deduplicate
+by source/PDF page, and pass the bounded evidence set to the card-writing model.
+The model may only claim a tool, part, action, or gotcha that appears in this
+evidence. If a category is not retrieved, say it is not established; do not infer
+a generic shop-tool list.
+
+The default card is a concise workbench artifact, not a manual summary:
+
+- What you're doing
+- Bring to the car
+- Do this
+- Watch for
+- Next / selected follow-on work
+- Verify before closing
+- STOP & VERIFY
+
+The original manual remains the detailed procedure. Source cards provide the
+clickable route to exact pages; the card must not waste space repeatedly telling
+the builder to open the manual.
+
+Validate each curated task with an evidence-coverage check before calling it
+demo-ready. For front suspension, the evidence set must include the relevant
+tool/parts pages (including Mk5 manual PDF pp. 44 and 47) as well as procedure and
+hold-point pages. Capture card quality and latency for manual-only retrieval.
 
 ### 7. Curated community context
 
@@ -171,21 +225,18 @@ unnecessary implementation detail.
 
 ## Current next sequence
 
-1. Ensure every citation exposes each exact PDF page as its own clickable link;
-   validate this in the local Mk5 manual viewer.
-2. Complete the local retrieval evaluation set beyond the first IRS workflow,
-   including page citations, torque questions, sequencing questions, diagrams,
-   and required STOP & VERIFY abstentions.
-3. Complete the user-facing structured, source-linked torque interface using the
-   audited Mk5 dataset; visibly distinguish verified rows from any provisional,
-   configuration-dependent, or official-source-conflict rows. Do not surface the
-   two unresolved Factory Five IRS conflicts as automatic numeric answers.
-4. Implement the supplied briefing template as a true saved artifact, including
-   task setup, readiness, prerequisites, hold points, source links, and the
-   prescribed sections—not just a saved chat answer.
-5. Add curated Factory Five forum threads and task tags, then consider the gated
-   forum/general-web research workflow described above.
-6. Treat authentication, persistent database/blob storage, rate limits, and Vercel
+1. Validate the new table-of-contents → controlling document/start page → bounded
+   section retrieval → structured card flow on front suspension. The first live
+   acceptance run retrieved required manual pp. 44 and 47 and their named tool lists.
+2. Validate selected-build scoping on IRS and fuel-tank installation: core staging
+   lists must exclude selected later procedures, and a vendor-document gap must
+   become STOP & VERIFY rather than a substituted manual configuration.
+3. Keep Factory Five Forum research as a separate, explicit user action. It must
+   be domain-restricted, clearly labeled as community experience, capped to useful
+   thread cards, saved with the briefing, and never block manual-first output.
+4. Tune the concise garage-card presentation with representative builder tasks,
+   then write and rehearse the class-demo script and fallback path.
+5. Treat authentication, persistent database/blob storage, rate limits, and Vercel
    deployment as the hosted-product stretch sequence after the local demo is
    credible and evaluated.
 
@@ -208,7 +259,9 @@ unnecessary implementation detail.
 - The local demo uses real OpenAI retrieval and handles both scripted and
   unscripted questions without inventing missing safety-critical information.
 - Answers identify their source type and link to exact manual PDF pages whenever a manual supports the claim.
-- A briefing can be generated from the approved template and saved for later viewing.
+- A briefing is a concise evidence-backed garage card that names task-specific
+  tools/parts only when their supporting manual pages were retrieved, and it can
+  be saved for later viewing.
 - Saved briefings appear in a dedicated Build Briefings tab and can be reopened
   with their original source links and readiness/hold-point context.
 - Torque information is rendered from structured, sourced data.

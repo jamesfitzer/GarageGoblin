@@ -7,6 +7,7 @@ out/
 *.tsbuildinfo
 .DS_Store
 generated/
+tmp/
 
 # Owner-private build material: retain locally, never commit by default.
 sources/James Fitzer MK5 Complete Roadster Kit 0225114.pdf
