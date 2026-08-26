@@ -17,6 +17,10 @@ retrieval file per original PDF page, so a search hit has an exact source-page
 identity. `sources/` remains the canonical local source intake; no owner-private
 documents are ingested.
 
+The local proof saves conversations and saved build briefings only in the current
+browser's local storage. It is intentionally not an authenticated or shared data
+store yet; clearing browser data clears this local workspace.
+
 ## Retrieval-proof status
 
 The briefing route uses real OpenAI Responses API File Search and returns the
