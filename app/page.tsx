@@ -24,7 +24,11 @@ function newId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random()
 function makeChat(): Chat { const now = new Date().toISOString(); return { id: newId("chat"), title: "New garage conversation", createdAt: now, updatedAt: now, messages: [] }; }
 function formatDate(date: string) { return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date)); }
 function normalizeBriefingQuestion(question: string) { return question.trim().replace(/\s+/g, " ").toLowerCase(); }
-function requestsExternalResearch(question: string) { return /\b(?:search|look\s*up|check|see\s+what)\b[\s\S]{0,80}\b(?:forum|forums|google|web|internet)\b/i.test(question); }
+function requestsExternalResearch(question: string) {
+  const mentionsExternalSource = /\b(?:forum|forums|google|web|internet|online|reddit)\b/i.test(question);
+  const asksForOutsidePerspective = /\b(?:search|research|look\s*up|check|find|what\s+(?:do|does)\b[\s\S]{0,32}\b(?:say|think|recommend|use)|how\b[\s\S]{0,32}\b(?:feel|think)|consensus|experience)\b/i.test(question);
+  return mentionsExternalSource && asksForOutsidePerspective;
+}
 
 export default function Home() {
   const [question, setQuestion] = useState(quickPrompts[0]);

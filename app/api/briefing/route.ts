@@ -45,6 +45,12 @@ function removeNumericTorqueLines(answer: string) {
   return { answer: kept.join("\n").replace(/\n{3,}/g, "\n\n").trim(), removed: kept.length !== lines.length };
 }
 
+function requestsExternalResearch(question: string) {
+  const mentionsExternalSource = /\b(?:forum|forums|google|web|internet|online|reddit)\b/i.test(question);
+  const asksForOutsidePerspective = /\b(?:search|research|look\s*up|check|find|what\s+(?:do|does)\b[\s\S]{0,32}\b(?:say|think|recommend|use)|how\b[\s\S]{0,32}\b(?:feel|think)|consensus|experience)\b/i.test(question);
+  return mentionsExternalSource && asksForOutsidePerspective;
+}
+
 export async function POST(request: Request) {
   if (!process.env.OPENAI_API_KEY) {
     return Response.json({ error: "OPENAI_API_KEY is missing. Add it to .env.local and restart the dev server." }, { status: 503 });
@@ -60,7 +66,7 @@ export async function POST(request: Request) {
   const context = typeof body.context === "string" ? body.context.trim().slice(0, 4_000) : "";
 
   const isForumResearch = body.forumResearch === true;
-  const isWebResearch = body.webResearch === true;
+  const isWebResearch = body.webResearch === true || requestsExternalResearch(question);
   if (isForumResearch) {
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     let response;
