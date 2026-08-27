@@ -15,6 +15,7 @@ type Message = { id: string; role: "user" | "assistant"; content: string; citati
 type Chat = { id: string; title: string; createdAt: string; updatedAt: string; messages: Message[] };
 type SavedBriefing = { id: string; chatId: string; title: string; question: string; content: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; phase: "Inventory" | "Mock-up" | "Assembly" | "Setup" | "Commissioning"; readiness: "Ready" | "Ready after checks" | "Stop pending resolution"; createdAt: string };
 type StoredWorkspace = { chats: Chat[]; activeChatId: string; briefings: SavedBriefing[] };
+type WorkspaceView = "chat" | "briefings" | "torque" | "how-it-works";
 
 const storageKey = "garage-goblin.local-workspace.v1";
 const quickPrompts = ["Prep me for: 2015+ IRS installation.", "What gear oil and friction modifier does this 2015+ IRS need?", "Can I drill or grind the IRS mount so the fourth bolt goes in?"];
@@ -37,7 +38,7 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [briefings, setBriefings] = useState<SavedBriefing[]>([]);
   const [activeBriefingId, setActiveBriefingId] = useState<string | null>(null);
-  const [view, setView] = useState<"chat" | "briefings" | "torque">("chat");
+  const [view, setView] = useState<WorkspaceView>("chat");
   const [phase, setPhase] = useState<SavedBriefing["phase"]>("Assembly");
   const [readiness, setReadiness] = useState<SavedBriefing["readiness"]>("Ready after checks");
   const [loading, setLoading] = useState(false);
@@ -230,6 +231,7 @@ export default function Home() {
         <button className={view === "chat" ? "active" : ""} type="button" onClick={() => setView("chat")}>Garage chat</button>
         <button className={view === "briefings" ? "active" : ""} type="button" onClick={() => setView("briefings")}>Build briefings <span>{briefings.length}</span></button>
         <button className={view === "torque" ? "active" : ""} type="button" onClick={() => setView("torque")}>Torque specs <span>{torqueSpecs.length}</span></button>
+        <button className={view === "how-it-works" ? "active" : ""} type="button" onClick={() => setView("how-it-works")}>How it works</button>
       </nav>
       <section className="sidebar-section"><div className="sidebar-heading"><h2>Conversations</h2><span>{chats.length}</span></div>
         <div className="chat-list">{chats.map((chat) => <button className={chat.id === activeChatId ? "chat-row active" : "chat-row"} type="button" key={chat.id} onClick={() => { setActiveChatId(chat.id); setView("chat"); }}><strong>{chat.title}</strong><span>{chat.messages.length ? `${chat.messages.length} messages · ${formatDate(chat.updatedAt)}` : "Empty conversation"}</span></button>)}</div>
@@ -243,7 +245,7 @@ export default function Home() {
       <button className="reset-workspace" type="button" onClick={resetLocalWorkspace}>Reset local demo workspace</button>
     </aside>
     <section className="app-main">
-      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : "Torque specs"}</h1></div><span className="status">Local-only workspace</span></header>
+      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : view === "torque" ? "Torque specs" : "How Garage Goblin works"}</h1></div><span className="status">Local-only workspace</span></header>
     {view === "chat" ? <section className="chat-workspace">
         <div className="conversation" aria-live="polite" ref={conversationRef}>
           {!activeChat?.messages.length && <p className="empty-state">Ask a manual question. This conversation will remain here on this browser.</p>}
@@ -276,7 +278,7 @@ export default function Home() {
         <p className="briefing-question">{activeBriefing.question}</p>{activeBriefing.briefingArtifact ? <BriefingArtifactView artifact={activeBriefing.briefingArtifact} forumResearch={activeBriefing.forumResearch} onResearchForum={() => { const message = findBriefingMessage(activeBriefing); if (message) researchForum(message.chatId, message.messageId, activeBriefing.question); }} researchingForum={forumResearchingMessageId !== null} /> : <MarkdownContent content={activeBriefing.content} />}{activeBriefing.warning && <div className="notice">{activeBriefing.warning}</div>}{activeBriefing.torqueSupplement && <BriefingTorqueSupplement supplement={activeBriefing.torqueSupplement} />}{activeBriefing.webSources && <WebResearchSources sources={activeBriefing.webSources} />}
         <div className="briefing-meta"><span>Phase: <strong>{activeBriefing.phase}</strong></span><span>Saved {formatDate(activeBriefing.createdAt)}</span></div><h3>Supporting source pages</h3><CitationCards citations={activeBriefing.citations} />
       </> : <div className="empty-state"><h2>No briefing selected</h2><p>Saved manual-grounded answers will collect here so you can switch jobs without losing your place.</p><button type="button" onClick={() => setView("chat")}>Go to garage chat</button></div>}</section>
-    </section> : <TorqueSpecsWorkspace />}</section>
+    </section> : view === "torque" ? <TorqueSpecsWorkspace /> : <HowItWorksWorkspace />}</section>
     {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
       <section className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div className="settings-heading"><div><div className="eyebrow">Garage settings</div><h2 id="settings-title">Presentation controls</h2></div><button type="button" aria-label="Close garage settings" onClick={() => setSettingsOpen(false)}>×</button></div>
@@ -314,6 +316,25 @@ function GarageBootSequence({ onDismiss }: { onDismiss: () => void }) {
 }
 
 type TorqueFilter = "all" | "front" | "irs" | "solid-axle" | "brakes" | "driveline" | "general";
+
+function HowItWorksWorkspace() {
+  return <section className="how-it-works">
+    <div className="how-intro"><div><div className="eyebrow">The five-year-old version</div><h2>Garage Goblin is a very fast manual finder with a safety habit.</h2><p>It does not replace the build manual. It helps a builder find the relevant pages, turn them into a short garage-ready checklist, and show exactly where each claim came from.</p></div><span className="status">Made for one Mk5 demo build</span></div>
+    <section className="how-flow" aria-label="Garage Goblin answer flow">
+      <article><span>1</span><h3>Put the manuals in</h3><p>Factory Five manuals and approved vendor instructions become the build's reference library.</p></article>
+      <article><span>2</span><h3>Ask in normal language</h3><p>“Prep me for the fuel tank” is enough. You do not need to know the manual's chapter name.</p></article>
+      <article><span>3</span><h3>Find the right pages</h3><p>The AI maps the task to relevant manual sections, then looks for tools, parts, sequence, and hold points.</p></article>
+      <article><span>4</span><h3>Make a garage card</h3><p>It returns a short staging list, a practical sequence, gotchas, and checks before access closes.</p></article>
+      <article><span>5</span><h3>Show the receipts</h3><p>Every manual-based claim links to the exact PDF page so the builder can inspect the original instruction.</p></article>
+    </section>
+    <section className="how-grid">
+      <article className="how-panel"><div className="eyebrow">Which sources win?</div><h3>The manual has the final word.</h3><ol className="source-order"><li><strong>Factory Five documents</strong><span>Controlling build guidance.</span></li><li><strong>Vendor instructions</strong><span>Important component-specific guidance.</span></li><li><strong>Factory Five Forum</strong><span>Clearly labeled builder experience and gotchas.</span></li><li><strong>General web</strong><span>Last-resort context, never controlling guidance.</span></li></ol></article>
+      <article className="how-panel how-safety"><div className="eyebrow">Why it is safer than a generic chatbot</div><h3>It knows when not to guess.</h3><p>If the manuals disagree, a selected part lacks instructions, or the exact configuration is unclear, Garage Goblin raises <strong>STOP &amp; VERIFY</strong> instead of inventing a confident answer.</p><p>Torque values are handled as reviewed, source-linked records—not improvised text.</p></article>
+      <article className="how-panel"><div className="eyebrow">What is real in this demo?</div><h3>Both paths are useful.</h3><dl className="how-demo-paths"><div><dt>Live demo</dt><dd>Runs real AI retrieval against the indexed manuals and saves the resulting briefings.</dd></div><div><dt>Canned demo</dt><dd>Displays source-linked fallback examples instantly when Wi-Fi, API limits, or demo gods are uncooperative.</dd></div></dl></article>
+    </section>
+    <section className="how-panel how-boundary"><div className="eyebrow">What this MVP does not do</div><p>It is not a general compatibility calculator, a DMV/insurance system, or an unrestricted internet advice machine. It is a trustworthy copilot for one documented Factory Five Mk5 Roadster build.</p></section>
+  </section>;
+}
 
 const torqueFilters: { id: TorqueFilter; label: string }[] = [
   { id: "all", label: "All specs" },

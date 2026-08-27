@@ -234,8 +234,10 @@ unnecessary implementation detail.
 3. Run the final local-demo acceptance pass: check the canned source links, the live
    queue's progress/error behavior, selected-build scoping, and latency. Rehearse a
    short class demo script with both the live and failure-recovery paths.
-4. Add the presentation-friendly “How Garage Goblin Works” tab if time permits;
-   it is the highest-value remaining class-presentation enhancement.
+4. **Completed for the local demo:** Add the presentation-friendly “How Garage
+   Goblin Works” tab. It explains the manual-first architecture, source hierarchy,
+   STOP & VERIFY behavior, and canned-versus-live demonstration paths without
+   exposing secrets or implementation identifiers.
 5. Treat authentication, persistent database/blob storage, rate limits, and Vercel
    deployment as the hosted-product stretch sequence after the local demo is
    credible and evaluated.
