@@ -411,6 +411,20 @@ function removeConflictedBrakeFluidStaging(card: GarageCard, question: string) {
   card.bringToTheCar = card.bringToTheCar.filter((bullet) => !/(?:\bdot\s*3\b|brake[-\s]?fluid)/i.test(bullet.text));
 }
 
+function normalizeImperialToolSizes(card: GarageCard) {
+  const fractionalInches: Record<string, string> = { "25": "1/4", "50": "1/2", "75": "3/4" };
+  const toolSize = /\b(\d+)\.(25|50|75)\s*(?:[”"]|in(?:ches)?\.?)\s*((?:deep\s+)?(?:socket|wrench)|hex\s+key|drill\s+bit|bit)\b/gi;
+  for (const key of ["bringToTheCar"] as const) {
+    card[key] = card[key].map((bullet) => ({
+      ...bullet,
+      // Manual extraction often expresses conventional tool sizes as decimals.
+      // Normalize only named tools; dimensions such as 2.45 in. rack spacers
+      // retain their source precision.
+      text: bullet.text.replace(toolSize, (_match, whole: string, decimal: string, tool: string) => `${whole}-${fractionalInches[decimal]} in. ${tool}`),
+    }));
+  }
+}
+
 function moveVaguePhysicalAlterationsToStopAndVerify(card: GarageCard) {
   const vagueAlteration = /\b(?:cut|drill|grind|trim|bend|file|modify)\b[^.]*\b(?:as instructed|as directed|as needed)\b/i;
   const broadTarget = /\b(?:cut|drill|grind|trim|bend|file|modify)\s+(?:the\s+)?(?:assembly|component|components|hardware|part|parts|system|box|cylinders?)\b/i;
@@ -438,6 +452,7 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
   removeExcludedFuelPickupContent(card, question);
   removeBrakeFluidFollowOn(card, question);
   removeConflictedBrakeFluidStaging(card, question);
+  normalizeImperialToolSizes(card);
   moveVaguePhysicalAlterationsToStopAndVerify(card);
   const configurationSafetyGaps = getDemoBuildSafetyGaps(question);
   if (configurationSafetyGaps.length) {
