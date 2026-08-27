@@ -41,6 +41,7 @@ export default function Home() {
   const [readiness, setReadiness] = useState<SavedBriefing["readiness"]>("Ready after checks");
   const [loading, setLoading] = useState(false);
   const [forumResearchingMessageId, setForumResearchingMessageId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [bootComplete, setBootComplete] = useState(false);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -80,6 +81,20 @@ export default function Home() {
   }
   function appendMessage(chatId: string, message: Message, title?: string) {
     setChats((current) => current.map((chat) => chat.id === chatId ? { ...chat, title: title ?? chat.title, updatedAt: message.createdAt, messages: [...chat.messages, message] } : chat));
+  }
+
+  async function copyResponse(message: Message) {
+    const manualSources = (message.citations ?? []).map((citation) => `- ${citation.title}${citation.page ? ` — PDF p. ${citation.page}` : ""} (${citation.authority}): ${citation.url}`);
+    const externalSources = (message.webSources ?? []).map((source) => `- ${source.sourceType}: ${source.url}`);
+    const sourceBlock = [...manualSources, ...externalSources];
+    const clipboardText = `${message.content}${message.warning ? `\n\nNote: ${message.warning}` : ""}${sourceBlock.length ? `\n\nSources\n${sourceBlock.join("\n")}` : ""}`;
+    try {
+      await navigator.clipboard.writeText(clipboardText);
+      setCopiedMessageId(message.id);
+      window.setTimeout(() => setCopiedMessageId((current) => current === message.id ? null : current), 1_800);
+    } catch {
+      setCopiedMessageId(null);
+    }
   }
 
   async function researchForum(chatId: string, messageId: string, briefingQuestion: string) {
@@ -180,6 +195,7 @@ export default function Home() {
           {activeChat?.messages.map((message, index) => { const briefingQuestion = [...activeChat.messages.slice(0, index + 1)].reverse().find((item) => item.role === "user")?.content; return <article className={`message message-${message.role}`} key={message.id}>
             <div className="message-label">{message.role === "user" ? "You" : "Garage Goblin"} <time>{formatDate(message.createdAt)}</time></div>
             {message.briefingArtifact ? <BriefingArtifactView artifact={message.briefingArtifact} forumResearch={message.forumResearch} onResearchForum={() => researchForum(activeChat.id, message.id, briefingQuestion ?? "")} researchingForum={forumResearchingMessageId === message.id} /> : <MarkdownContent content={message.content} />}
+            {message.role === "assistant" && <button className="copy-response" type="button" onClick={() => copyResponse(message)}>{copiedMessageId === message.id ? "Copied for Codex" : "Copy response"}</button>}
             {message.warning && <div className="notice">{message.warning}</div>}
             {message.torqueSupplement && <BriefingTorqueSupplement supplement={message.torqueSupplement} />}
             <CitationCards citations={message.citations ?? []} />
