@@ -2,6 +2,15 @@
 
 Local-first retrieval proof for a Factory Five Mk5 Roadster garage copilot.
 
+## Deployment status
+
+The checked-in application is intentionally local-first and is **not safe to
+deploy publicly yet**: chats/briefings are browser-local and source routes are
+not authenticated. The hosted, invite-only demo path begins by adding Clerk
+authentication locally; follow [`HOSTED_DEMO_PLAN.md`](HOSTED_DEMO_PLAN.md) and
+the implementation handoff in
+[`HOSTED_DEMO_HANDOFF.md`](HOSTED_DEMO_HANDOFF.md).
+
 ## Local setup
 
 1. Copy `.env.example` to `.env.local`.
