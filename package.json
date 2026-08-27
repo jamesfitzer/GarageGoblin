@@ -17,7 +17,8 @@
     "ingest:approved-pages": "node --env-file=.env.local scripts/ingest-approved-page-index.mjs",
     "evaluate:retrieval": "node --env-file=.env.local scripts/evaluate-retrieval.mjs",
     "evaluate:forum-workflow": "node --env-file=.env.local scripts/evaluate-forum-workflow.mjs",
-    "audit:vector-search": "node --env-file=.env.local scripts/audit-vector-search.mjs"
+    "audit:vector-search": "node --env-file=.env.local scripts/audit-vector-search.mjs",
+    "check:safety-gaps": "node --experimental-strip-types scripts/check-safety-gaps.ts"
   },
   "engines": {
     "node": ">=22.0.0"

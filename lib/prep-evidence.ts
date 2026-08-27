@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { VectorStoreSearchResponse } from "openai/resources/vector-stores/vector-stores";
 import { getDemoBuildContext, getDemoBuildSafetyGaps, renderDemoBuildContext } from "@/lib/demo-build-context";
-import { getSourceFromRetrievalFilename } from "@/lib/sources";
+import { getSource, getSourceFromRetrievalFilename } from "@/lib/sources";
 
 const PREP_MODEL = "gpt-5.4-mini";
 const MAX_PROCEDURE_AREAS = 9;
@@ -391,6 +391,14 @@ function removeExcludedFuelPickupContent(card: GarageCard, question: string) {
   }
 }
 
+function removeBrakeFluidFollowOn(card: GarageCard, question: string) {
+  if (!/(?:brake|caliper|rotor|flexline|bleed|brake[-\s]?fluid)/i.test(question)) return;
+  const remaining = card.nextSelectedFollowOnWork.filter((bullet) => !/(?:fluid\s+choice|additional\s+information\s+and\s+recommendations)/i.test(bullet.text));
+  card.nextSelectedFollowOnWork = remaining.length
+    ? remaining
+    : [{ text: "No selected follow-on work retrieved.", evidenceIds: [] }];
+}
+
 export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string, question: string): Promise<PrepEvidenceResult> {
   const buildContext = renderDemoBuildContext(getDemoBuildContext(question));
   const plan = await planTask(client, vectorStoreId, question, buildContext);
@@ -400,16 +408,20 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
 
   const card = await writeCard(client, question, plan, evidence, missingSectionStarts, buildContext);
   removeExcludedFuelPickupContent(card, question);
+  removeBrakeFluidFollowOn(card, question);
   const configurationSafetyGaps = getDemoBuildSafetyGaps(question);
   if (configurationSafetyGaps.length) {
-    card.stopAndVerify = configurationSafetyGaps.map((text) => ({ text, evidenceIds: [] }));
+    card.stopAndVerify = [
+      ...card.stopAndVerify.filter((bullet) => !/^No additional unresolved safety-critical gap retrieved\.?$/i.test(bullet.text.trim())),
+      ...configurationSafetyGaps.map((gap) => ({ text: gap.text, evidenceIds: [] })),
+    ];
   }
   const allowedIds = new Set(evidence.map((item) => item.id));
   const usedIds = uniqueNonempty(
     sectionKeys.flatMap((key) => card[key].flatMap((bullet) => bullet.evidenceIds)),
   ).filter((id) => allowedIds.has(id));
   const usedEvidence = usedIds.map((id) => evidence.find((item) => item.id === id)).filter((item): item is EvidenceItem => Boolean(item));
-  const citations = usedEvidence
+  const evidenceCitations = usedEvidence
     .map((item) => getSourceFromRetrievalFilename(item.filename))
     .filter((citation): citation is NonNullable<typeof citation> => Boolean(citation))
     .filter((citation, index, all) => all.findIndex((item) => item.source.id === citation.source.id && item.page === citation.page) === index)
@@ -420,6 +432,21 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
       page,
       url: `/api/sources/${source.id}#page=${page ?? source.initialPage}`,
     }));
+  const safetyGapCitations = configurationSafetyGaps
+    .flatMap((gap) => gap.citations ?? [])
+    .map(({ sourceId, page }) => {
+      const source = getSource(sourceId);
+      return source ? {
+        id: `${source.id}-${page}`,
+        title: source.title,
+        authority: source.authority,
+        page,
+        url: `/api/sources/${source.id}#page=${page}`,
+      } : undefined;
+    })
+    .filter((citation): citation is NonNullable<typeof citation> => Boolean(citation));
+  const citations = [...evidenceCitations, ...safetyGapCitations]
+    .filter((citation, index, all) => all.findIndex((item) => item.id === citation.id) === index);
 
   const warning = missingSectionStarts.length
     ? `The following planned manual sections could not be retrieved: ${missingSectionStarts.join(", ")}. Treat their card coverage as incomplete.`

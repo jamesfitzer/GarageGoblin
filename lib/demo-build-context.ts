@@ -14,6 +14,11 @@ export type DemoBuildContext = {
   facts: string[];
 };
 
+export type DemoBuildSafetyGap = {
+  text: string;
+  citations?: Array<{ sourceId: string; page: number }>;
+};
+
 const irsContext: DemoBuildContext = {
   label: "Selected rear-suspension configuration",
   sources: ["Factory Five sales order", "Master build specification"],
@@ -82,10 +87,20 @@ export function renderDemoBuildContext(contexts: DemoBuildContext[]) {
   return contexts.map((context) => `${context.label} (configuration sources: ${context.sources.join("; ")}):\n${context.facts.map((fact) => `- ${fact}`).join("\n")}`).join("\n\n");
 }
 
-/** Configuration gaps that must be surfaced even when no manual page can cite them. */
-export function getDemoBuildSafetyGaps(question: string) {
+/** Configuration conflicts that must be surfaced independent of retrieval ranking. */
+export function getDemoBuildSafetyGaps(question: string): DemoBuildSafetyGap[] {
+  const gaps: DemoBuildSafetyGap[] = [];
   if (/(?:fuel|tank|pump|sender|filler|vent|filter|fuel[-\s]?line)/i.test(question)) {
-    return ["STOP & VERIFY the selected Holley in-tank module's installation, sealing, and electrical instructions with Holley/Forte documentation before closing or sealing the tank. The approved source set does not include those instructions."];
+    gaps.push({ text: "STOP & VERIFY the selected Holley in-tank module's installation, sealing, and electrical instructions with Holley/Forte documentation before closing or sealing the tank. The approved source set does not include those instructions." });
   }
-  return [];
+  if (/(?:brake|caliper|rotor|flexline|bleed|brake[-\s]?fluid)/i.test(question)) {
+    gaps.push({
+      text: "STOP & VERIFY the brake-fluid choice before filling or bleeding: Factory Five specifies DOT 3, while the selected Wilwood 140-15138 instruction specifies Hi-Temp 570 grade fluid or higher. Do not select or reconcile those requirements in Garage Goblin; confirm the correct fluid with Factory Five and Wilwood.",
+      citations: [
+        { sourceId: "mk5-roadster-manual", page: 280 },
+        { sourceId: "wilwood-140-15138", page: 7 },
+      ],
+    });
+  }
+  return gaps;
 }
