@@ -44,6 +44,7 @@ export default function Home() {
   const [forumResearchingMessageId, setForumResearchingMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [liveDemoProgress, setLiveDemoProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [bootComplete, setBootComplete] = useState(false);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -74,6 +75,13 @@ export default function Home() {
     conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: "smooth" });
   }, [activeChat?.id, activeChat?.messages.length, loading]);
 
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setSettingsOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [settingsOpen]);
+
   function createChat() { const chat = makeChat(); setChats((current) => [chat, ...current]); setActiveChatId(chat.id); setView("chat"); }
   function resetLocalWorkspace() {
     if (!window.confirm("Reset all local Garage Goblin chats and saved briefings on this browser?")) return;
@@ -95,12 +103,12 @@ export default function Home() {
       messages: fixture.messages.map((message, index) => ({ ...message, id: `${fixture.id}-message-${index}`, createdAt: now })),
     }));
     setChats((current) => [...demoChats, ...current.filter((chat) => !chat.id.startsWith("demo-canned-"))]);
-    setActiveChatId(demoChats[0].id); setQuestion(demoChats[0].messages[0].content); setView("chat");
+    setActiveChatId(demoChats[0].id); setQuestion(demoChats[0].messages[0].content); setView("chat"); setSettingsOpen(false);
   }
 
   async function runLiveDemo() {
     if (loading || liveDemoProgress) return;
-    setLoading(true); setLiveDemoProgress({ completed: 0, total: liveDemoPrompts.length }); setView("chat");
+    setLoading(true); setLiveDemoProgress({ completed: 0, total: liveDemoPrompts.length }); setView("chat"); setSettingsOpen(false);
     for (const [index, scenario] of liveDemoPrompts.entries()) {
       const askedAt = new Date().toISOString();
       const chat = makeChat(scenario.title);
@@ -210,16 +218,14 @@ export default function Home() {
   return <main className="app-shell">
     {!bootComplete && <GarageBootSequence onDismiss={() => setBootComplete(true)} />}
     <aside className="app-sidebar">
-      <div className="brand-lockup">
-        <img src="/brand/garage-goblin-sidebar-icon.png" alt="Garage Goblin mascot" />
-        <div><strong>Garage Goblin</strong><span>Factory Five Mk5 Roadster</span><em>Garage systems nominal-ish</em></div>
+      <div className="brand-row">
+        <div className="brand-lockup">
+          <img src="/brand/garage-goblin-sidebar-icon.png" alt="Garage Goblin mascot" />
+          <div><strong>Garage Goblin</strong><span>Factory Five Mk5 Roadster</span><em>Garage systems nominal-ish</em></div>
+        </div>
+        <button className="settings-toggle" type="button" aria-label="Open garage settings" aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(true)}>⚙</button>
       </div>
       <button className="new-chat sidebar-new-chat" type="button" onClick={createChat}>+ New conversation</button>
-      <section className="demo-controls" aria-label="Presentation controls">
-        <div><div className="eyebrow">Presentation controls</div><strong>Demo without gambling</strong><p>Canned mode is instant and makes no API calls. Live mode queues four real manual queries.</p></div>
-        <div className="demo-actions"><button type="button" onClick={openCannedDemo} disabled={loading}>Open canned demo</button><button type="button" onClick={runLiveDemo} disabled={loading || Boolean(liveDemoProgress)}>{liveDemoProgress ? `Running live demo · ${liveDemoProgress.completed}/${liveDemoProgress.total}` : "Run live demo"}</button></div>
-        <small>For live fuel-tank forum context, open its result and use <em>Research Factory Five Forum gotchas</em>.</small>
-      </section>
       <nav className="workspace-tabs" role="tablist" aria-label="Garage Goblin workspace">
         <button className={view === "chat" ? "active" : ""} type="button" onClick={() => setView("chat")}>Garage chat</button>
         <button className={view === "briefings" ? "active" : ""} type="button" onClick={() => setView("briefings")}>Build briefings <span>{briefings.length}</span></button>
@@ -271,6 +277,16 @@ export default function Home() {
         <div className="briefing-meta"><span>Phase: <strong>{activeBriefing.phase}</strong></span><span>Saved {formatDate(activeBriefing.createdAt)}</span></div><h3>Supporting source pages</h3><CitationCards citations={activeBriefing.citations} />
       </> : <div className="empty-state"><h2>No briefing selected</h2><p>Saved manual-grounded answers will collect here so you can switch jobs without losing your place.</p><button type="button" onClick={() => setView("chat")}>Go to garage chat</button></div>}</section>
     </section> : <TorqueSpecsWorkspace />}</section>
+    {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
+      <section className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div className="settings-heading"><div><div className="eyebrow">Garage settings</div><h2 id="settings-title">Presentation controls</h2></div><button type="button" aria-label="Close garage settings" onClick={() => setSettingsOpen(false)}>×</button></div>
+        <div className="demo-controls">
+          <div><strong>Demo without gambling</strong><p>Canned mode is instant and makes no API calls. Live mode queues four real manual queries.</p></div>
+          <div className="demo-actions"><button type="button" onClick={openCannedDemo} disabled={loading}>Open canned demo</button><button type="button" onClick={runLiveDemo} disabled={loading || Boolean(liveDemoProgress)}>{liveDemoProgress ? `Running live demo · ${liveDemoProgress.completed}/${liveDemoProgress.total}` : "Run live demo"}</button></div>
+          <small>For live fuel-tank forum context, open its result and use <em>Research Factory Five Forum gotchas</em>.</small>
+        </div>
+      </section>
+    </div>}
   </main>;
 }
 
