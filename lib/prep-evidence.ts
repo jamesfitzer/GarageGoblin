@@ -403,6 +403,14 @@ function removeBrakeFluidFollowOn(card: GarageCard, question: string) {
     : [{ text: "No selected follow-on work retrieved.", evidenceIds: [] }];
 }
 
+function removeConflictedBrakeFluidStaging(card: GarageCard, question: string) {
+  if (!/(?:brake|caliper|rotor|flexline|bleed|brake[-\s]?fluid|master cylinder|pedal\s*box)/i.test(question)) return;
+  // This demo has a known Factory Five / selected-Wilwood fluid conflict. The
+  // STOP & VERIFY block owns that decision; a staging bullet must not quietly
+  // select one side of the conflict for the builder.
+  card.bringToTheCar = card.bringToTheCar.filter((bullet) => !/(?:\bdot\s*3\b|brake[-\s]?fluid)/i.test(bullet.text));
+}
+
 function moveVaguePhysicalAlterationsToStopAndVerify(card: GarageCard) {
   const vagueAlteration = /\b(?:cut|drill|grind|trim|bend|file|modify)\b[^.]*\b(?:as instructed|as directed|as needed)\b/i;
   const broadTarget = /\b(?:cut|drill|grind|trim|bend|file|modify)\s+(?:the\s+)?(?:assembly|component|components|hardware|part|parts|system|box|cylinders?)\b/i;
@@ -429,6 +437,7 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
   const card = await writeCard(client, question, plan, evidence, missingSectionStarts, buildContext);
   removeExcludedFuelPickupContent(card, question);
   removeBrakeFluidFollowOn(card, question);
+  removeConflictedBrakeFluidStaging(card, question);
   moveVaguePhysicalAlterationsToStopAndVerify(card);
   const configurationSafetyGaps = getDemoBuildSafetyGaps(question);
   if (configurationSafetyGaps.length) {
