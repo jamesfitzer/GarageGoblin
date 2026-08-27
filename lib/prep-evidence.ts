@@ -267,7 +267,11 @@ async function collectEvidence(client: OpenAI, vectorStoreId: string, searches: 
       results = [...scopedResults(search, repair.data), ...results]
         .filter((result, index, all) => all.findIndex((item) => item.filename === result.filename) === index);
     }
-    return { search, results: results.slice(0, 3) };
+    // A concise procedure section can still span four adjacent pages. Keeping
+    // one more ranked page avoids losing a modification instruction (for
+    // example, a cut or drilling step) that is between the section heading
+    // and the installation photo, without adding another vector-store call.
+    return { search, results: results.slice(0, 4) };
   }));
 
   const byFilename = new Map<string, Omit<EvidenceItem, "id"> & { queryRanks: number[] }>();
@@ -343,7 +347,7 @@ async function writeCard(client: OpenAI, question: string, plan: PrepPlan, evide
 The six output fields mean:
 - whatYoureDoing: exactly one plain-language orientation bullet describing the selected core task.
 - bringToTheCar: only the concrete tools, materials, parts, hardware, and assistance for CORE evidence. Group by core procedure area where useful, consolidate duplicates, and retain every distinct named hand tool from each retrieved core section-start list. A hand tool may appear only once across this field. Prefer named tools and special tools over narrating large quantities of ordinary supplied fasteners. This is a staging list, not prose. Never invent generic tools. If core evidence is incomplete, include what is supported and say exactly which core procedure area's list is missing.
-- doThis: 3-6 high-level CORE actions in controlling sequence. Orient the builder without reproducing the manual.
+- doThis: 3-6 high-level CORE actions in controlling sequence. Orient the builder without reproducing the manual. A physical alteration (cut, drill, grind, trim, bend, or file) is an exception to high-level wording: make it a standalone bullet that identifies the exact sub-part or feature being altered, the operation, its measured amount or location when supplied, and any stated precondition. Never describe an alteration with a broad assembly shorthand when the evidence identifies a smaller target. For example, never write "cut the master cylinders as instructed" when the evidence identifies a threaded shaft. If those details are not retained in evidence, do not include the alteration in doThis; state the gap in stopAndVerify instead.
 - watchFor: 1-4 concrete, non-obvious manual cautions, option branches, fitment notes, or irreversible hold points.
 - nextSelectedFollowOnWork: selected follow-on procedures only. Give one short bullet per relevant follow-on procedure with its dependency or timing. Do not repeat its tool list here; this is not a second staging list. If none are selected/retrieved, return "No selected follow-on work retrieved."
 - verifyBeforeClosing: 1-4 specific checks before access disappears, final retention, or first load.
@@ -399,6 +403,22 @@ function removeBrakeFluidFollowOn(card: GarageCard, question: string) {
     : [{ text: "No selected follow-on work retrieved.", evidenceIds: [] }];
 }
 
+function moveVaguePhysicalAlterationsToStopAndVerify(card: GarageCard) {
+  const vagueAlteration = /\b(?:cut|drill|grind|trim|bend|file|modify)\b[^.]*\b(?:as instructed|as directed|as needed)\b/i;
+  const broadTarget = /\b(?:cut|drill|grind|trim|bend|file|modify)\s+(?:the\s+)?(?:assembly|component|components|hardware|part|parts|system|box|cylinders?)\b/i;
+  const unsafeBullets = card.doThis.filter((bullet) => vagueAlteration.test(bullet.text) || broadTarget.test(bullet.text));
+  if (!unsafeBullets.length) return;
+
+  card.doThis = card.doThis.filter((bullet) => !unsafeBullets.includes(bullet));
+  card.stopAndVerify = [
+    ...card.stopAndVerify.filter((bullet) => !/^No additional unresolved safety-critical gap retrieved\.?$/i.test(bullet.text.trim())),
+    {
+      text: "STOP & VERIFY the exact target, amount, and location for the manual's physical modification before cutting, drilling, grinding, trimming, bending, or filing. The retrieved card evidence did not retain that detail clearly enough to restate safely.",
+      evidenceIds: [],
+    },
+  ];
+}
+
 export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string, question: string): Promise<PrepEvidenceResult> {
   const buildContext = renderDemoBuildContext(getDemoBuildContext(question));
   const plan = await planTask(client, vectorStoreId, question, buildContext);
@@ -409,6 +429,7 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
   const card = await writeCard(client, question, plan, evidence, missingSectionStarts, buildContext);
   removeExcludedFuelPickupContent(card, question);
   removeBrakeFluidFollowOn(card, question);
+  moveVaguePhysicalAlterationsToStopAndVerify(card);
   const configurationSafetyGaps = getDemoBuildSafetyGaps(question);
   if (configurationSafetyGaps.length) {
     card.stopAndVerify = [
