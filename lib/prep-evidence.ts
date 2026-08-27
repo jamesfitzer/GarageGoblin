@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { VectorStoreSearchResponse } from "openai/resources/vector-stores/vector-stores";
 import { getDemoBuildContext, getDemoBuildSafetyGaps, renderDemoBuildContext } from "@/lib/demo-build-context";
-import { getSourceFromRetrievalFilename } from "@/lib/sources";
+import { getSource, getSourceFromRetrievalFilename } from "@/lib/sources";
 
 const PREP_MODEL = "gpt-5.4-mini";
 const MAX_PROCEDURE_AREAS = 9;
@@ -267,7 +267,11 @@ async function collectEvidence(client: OpenAI, vectorStoreId: string, searches: 
       results = [...scopedResults(search, repair.data), ...results]
         .filter((result, index, all) => all.findIndex((item) => item.filename === result.filename) === index);
     }
-    return { search, results: results.slice(0, 3) };
+    // A concise procedure section can still span four adjacent pages. Keeping
+    // one more ranked page avoids losing a modification instruction (for
+    // example, a cut or drilling step) that is between the section heading
+    // and the installation photo, without adding another vector-store call.
+    return { search, results: results.slice(0, 4) };
   }));
 
   const byFilename = new Map<string, Omit<EvidenceItem, "id"> & { queryRanks: number[] }>();
@@ -343,7 +347,7 @@ async function writeCard(client: OpenAI, question: string, plan: PrepPlan, evide
 The six output fields mean:
 - whatYoureDoing: exactly one plain-language orientation bullet describing the selected core task.
 - bringToTheCar: only the concrete tools, materials, parts, hardware, and assistance for CORE evidence. Group by core procedure area where useful, consolidate duplicates, and retain every distinct named hand tool from each retrieved core section-start list. A hand tool may appear only once across this field. Prefer named tools and special tools over narrating large quantities of ordinary supplied fasteners. This is a staging list, not prose. Never invent generic tools. If core evidence is incomplete, include what is supported and say exactly which core procedure area's list is missing.
-- doThis: 3-6 high-level CORE actions in controlling sequence. Orient the builder without reproducing the manual.
+- doThis: 3-6 high-level CORE actions in controlling sequence. Orient the builder without reproducing the manual. A physical alteration (cut, drill, grind, trim, bend, or file) is an exception to high-level wording: make it a standalone bullet that identifies the exact sub-part or feature being altered, the operation, its measured amount or location when supplied, and any stated precondition. Never describe an alteration with a broad assembly shorthand when the evidence identifies a smaller target. For example, never write "cut the master cylinders as instructed" when the evidence identifies a threaded shaft. If those details are not retained in evidence, do not include the alteration in doThis; state the gap in stopAndVerify instead.
 - watchFor: 1-4 concrete, non-obvious manual cautions, option branches, fitment notes, or irreversible hold points.
 - nextSelectedFollowOnWork: selected follow-on procedures only. Give one short bullet per relevant follow-on procedure with its dependency or timing. Do not repeat its tool list here; this is not a second staging list. If none are selected/retrieved, return "No selected follow-on work retrieved."
 - verifyBeforeClosing: 1-4 specific checks before access disappears, final retention, or first load.
@@ -391,6 +395,52 @@ function removeExcludedFuelPickupContent(card: GarageCard, question: string) {
   }
 }
 
+function removeBrakeFluidFollowOn(card: GarageCard, question: string) {
+  if (!/(?:brake|caliper|rotor|flexline|bleed|brake[-\s]?fluid)/i.test(question)) return;
+  const remaining = card.nextSelectedFollowOnWork.filter((bullet) => !/(?:fluid\s+choice|additional\s+information\s+and\s+recommendations)/i.test(bullet.text));
+  card.nextSelectedFollowOnWork = remaining.length
+    ? remaining
+    : [{ text: "No selected follow-on work retrieved.", evidenceIds: [] }];
+}
+
+function removeConflictedBrakeFluidStaging(card: GarageCard, question: string) {
+  if (!/(?:brake|caliper|rotor|flexline|bleed|brake[-\s]?fluid|master cylinder|pedal\s*box)/i.test(question)) return;
+  // This demo has a known Factory Five / selected-Wilwood fluid conflict. The
+  // STOP & VERIFY block owns that decision; a staging bullet must not quietly
+  // select one side of the conflict for the builder.
+  card.bringToTheCar = card.bringToTheCar.filter((bullet) => !/(?:\bdot\s*3\b|brake[-\s]?fluid)/i.test(bullet.text));
+}
+
+function normalizeImperialToolSizes(card: GarageCard) {
+  const fractionalInches: Record<string, string> = { "25": "1/4", "50": "1/2", "75": "3/4" };
+  const toolSize = /\b(\d+)\.(25|50|75)\s*(?:[”"]|in(?:ches)?\.?)\s*((?:deep\s+)?(?:socket|wrench)|hex\s+key|drill\s+bit|bit)\b/gi;
+  for (const key of ["bringToTheCar"] as const) {
+    card[key] = card[key].map((bullet) => ({
+      ...bullet,
+      // Manual extraction often expresses conventional tool sizes as decimals.
+      // Normalize only named tools; dimensions such as 2.45 in. rack spacers
+      // retain their source precision.
+      text: bullet.text.replace(toolSize, (_match, whole: string, decimal: string, tool: string) => `${whole}-${fractionalInches[decimal]} in. ${tool}`),
+    }));
+  }
+}
+
+function moveVaguePhysicalAlterationsToStopAndVerify(card: GarageCard) {
+  const vagueAlteration = /\b(?:cut|drill|grind|trim|bend|file|modify)\b[^.]*\b(?:as instructed|as directed|as needed)\b/i;
+  const broadTarget = /\b(?:cut|drill|grind|trim|bend|file|modify)\s+(?:the\s+)?(?:assembly|component|components|hardware|part|parts|system|box|cylinders?)\b/i;
+  const unsafeBullets = card.doThis.filter((bullet) => vagueAlteration.test(bullet.text) || broadTarget.test(bullet.text));
+  if (!unsafeBullets.length) return;
+
+  card.doThis = card.doThis.filter((bullet) => !unsafeBullets.includes(bullet));
+  card.stopAndVerify = [
+    ...card.stopAndVerify.filter((bullet) => !/^No additional unresolved safety-critical gap retrieved\.?$/i.test(bullet.text.trim())),
+    {
+      text: "STOP & VERIFY the exact target, amount, and location for the manual's physical modification before cutting, drilling, grinding, trimming, bending, or filing. The retrieved card evidence did not retain that detail clearly enough to restate safely.",
+      evidenceIds: [],
+    },
+  ];
+}
+
 export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string, question: string): Promise<PrepEvidenceResult> {
   const buildContext = renderDemoBuildContext(getDemoBuildContext(question));
   const plan = await planTask(client, vectorStoreId, question, buildContext);
@@ -400,16 +450,23 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
 
   const card = await writeCard(client, question, plan, evidence, missingSectionStarts, buildContext);
   removeExcludedFuelPickupContent(card, question);
+  removeBrakeFluidFollowOn(card, question);
+  removeConflictedBrakeFluidStaging(card, question);
+  normalizeImperialToolSizes(card);
+  moveVaguePhysicalAlterationsToStopAndVerify(card);
   const configurationSafetyGaps = getDemoBuildSafetyGaps(question);
   if (configurationSafetyGaps.length) {
-    card.stopAndVerify = configurationSafetyGaps.map((text) => ({ text, evidenceIds: [] }));
+    card.stopAndVerify = [
+      ...card.stopAndVerify.filter((bullet) => !/^No additional unresolved safety-critical gap retrieved\.?$/i.test(bullet.text.trim())),
+      ...configurationSafetyGaps.map((gap) => ({ text: gap.text, evidenceIds: [] })),
+    ];
   }
   const allowedIds = new Set(evidence.map((item) => item.id));
   const usedIds = uniqueNonempty(
     sectionKeys.flatMap((key) => card[key].flatMap((bullet) => bullet.evidenceIds)),
   ).filter((id) => allowedIds.has(id));
   const usedEvidence = usedIds.map((id) => evidence.find((item) => item.id === id)).filter((item): item is EvidenceItem => Boolean(item));
-  const citations = usedEvidence
+  const evidenceCitations = usedEvidence
     .map((item) => getSourceFromRetrievalFilename(item.filename))
     .filter((citation): citation is NonNullable<typeof citation> => Boolean(citation))
     .filter((citation, index, all) => all.findIndex((item) => item.source.id === citation.source.id && item.page === citation.page) === index)
@@ -420,6 +477,21 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
       page,
       url: `/api/sources/${source.id}#page=${page ?? source.initialPage}`,
     }));
+  const safetyGapCitations = configurationSafetyGaps
+    .flatMap((gap) => gap.citations ?? [])
+    .map(({ sourceId, page }) => {
+      const source = getSource(sourceId);
+      return source ? {
+        id: `${source.id}-${page}`,
+        title: source.title,
+        authority: source.authority,
+        page,
+        url: `/api/sources/${source.id}#page=${page}`,
+      } : undefined;
+    })
+    .filter((citation): citation is NonNullable<typeof citation> => Boolean(citation));
+  const citations = [...evidenceCitations, ...safetyGapCitations]
+    .filter((citation, index, all) => all.findIndex((item) => item.id === citation.id) === index);
 
   const warning = missingSectionStarts.length
     ? `The following planned manual sections could not be retrieved: ${missingSectionStarts.join(", ")}. Treat their card coverage as incomplete.`
