@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed } from "next/font/google";
+import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
 const brandFont = Barlow_Condensed({
@@ -16,7 +17,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={brandFont.variable}>{children}</body>
+      <body className={brandFont.variable}>
+        <ClerkProvider>{children}</ClerkProvider>
+      </body>
     </html>
   );
 }

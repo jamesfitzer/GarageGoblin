@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { UserButton } from "@clerk/nextjs";
+import Image from "next/image";
 import { initialSources } from "@/lib/sources";
 import { torqueSpecs, type TorqueSpec } from "@/lib/torque-specs";
 import type { BriefingArtifact } from "@/lib/briefing-template";
@@ -221,7 +223,7 @@ export default function Home() {
     <aside className="app-sidebar">
       <div className="brand-row">
         <div className="brand-lockup">
-          <img src="/brand/garage-goblin-sidebar-icon.png" alt="Garage Goblin mascot" />
+          <Image src="/brand/garage-goblin-sidebar-icon.png" alt="Garage Goblin mascot" width={48} height={48} priority />
           <div><strong>Garage Goblin</strong><span>Factory Five Mk5 Roadster</span><em>Garage systems nominal-ish</em></div>
         </div>
         <button className="settings-toggle" type="button" aria-label="Open garage settings" aria-haspopup="dialog" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(true)}>⚙</button>
@@ -245,7 +247,7 @@ export default function Home() {
       <button className="reset-workspace" type="button" onClick={resetLocalWorkspace}>Reset local demo workspace</button>
     </aside>
     <section className="app-main">
-      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : view === "torque" ? "Torque specs" : "How Garage Goblin works"}</h1></div><span className="status">Local-only workspace</span></header>
+      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : view === "torque" ? "Torque specs" : "How Garage Goblin works"}</h1></div><div className="account-controls"><span className="status">Local-only workspace</span><UserButton /></div></header>
     {view === "chat" ? <section className="chat-workspace">
         <div className="conversation" aria-live="polite" ref={conversationRef}>
           {!activeChat?.messages.length && <p className="empty-state">Ask a manual question. This conversation will remain here on this browser.</p>}
@@ -321,8 +323,8 @@ function HowItWorksWorkspace() {
   return <section className="how-it-works">
     <div className="how-intro"><div><div className="eyebrow">The five-year-old version</div><h2>Garage Goblin is a very fast manual finder with a safety habit.</h2><p>It does not replace the build manual. It helps a builder find the relevant pages, turn them into a short garage-ready checklist, and show exactly where each claim came from.</p></div><span className="status">Made for one Mk5 demo build</span></div>
     <section className="how-flow" aria-label="Garage Goblin answer flow">
-      <article><span>1</span><h3>Put the manuals in</h3><p>Factory Five manuals and approved vendor instructions become the build's reference library.</p></article>
-      <article><span>2</span><h3>Ask in normal language</h3><p>“Prep me for the fuel tank” is enough. You do not need to know the manual's chapter name.</p></article>
+      <article><span>1</span><h3>Put the manuals in</h3><p>Factory Five manuals and approved vendor instructions become the builder&apos;s reference library.</p></article>
+      <article><span>2</span><h3>Ask in normal language</h3><p>“Prep me for the fuel tank” is enough. You do not need to know the manual&apos;s chapter name.</p></article>
       <article><span>3</span><h3>Find the right pages</h3><p>The AI maps the task to relevant manual sections, then looks for tools, parts, sequence, and hold points.</p></article>
       <article><span>4</span><h3>Make a garage card</h3><p>It returns a short staging list, a practical sequence, gotchas, and checks before access closes.</p></article>
       <article><span>5</span><h3>Show the receipts</h3><p>Every manual-based claim links to the exact PDF page so the builder can inspect the original instruction.</p></article>

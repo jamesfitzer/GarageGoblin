@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { auth } from "@clerk/nextjs/server";
 import { garageGoblinInstructions } from "@/lib/garage-goblin-instructions";
 import { getSourceFromRetrievalFilename } from "@/lib/sources";
 import { getBriefingTorqueSupplement } from "@/lib/briefing-torque";
@@ -52,6 +53,9 @@ function requestsExternalResearch(question: string) {
 }
 
 export async function POST(request: Request) {
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Authentication required." }, { status: 401 });
+
   if (!process.env.OPENAI_API_KEY) {
     return Response.json({ error: "OPENAI_API_KEY is missing. Add it to .env.local and restart the dev server." }, { status: 503 });
   }
