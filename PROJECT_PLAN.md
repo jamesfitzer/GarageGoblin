@@ -2,7 +2,13 @@
 
 ## Outcome
 
-Deliver an authenticated public proof of concept for Garage Goblin: one Factory Five Mk5 Roadster demo build. Signed-in builders can ask grounded questions about approved manuals, open the exact PDF pages supporting answers, and save task-specific build briefings.
+Deliver a local, class-ready proof of concept for Garage Goblin: one Factory Five
+Mk5 Roadster demo build. The demo answers grounded questions about approved
+manuals, opens the exact PDF pages supporting answers, and saves task-specific
+build briefings in the current browser.
+
+The optional path to an authenticated browser-hosted demo now lives in
+[`HOSTED_DEMO_PLAN.md`](HOSTED_DEMO_PLAN.md).
 
 ## Brand and interface direction
 
@@ -44,8 +50,7 @@ During local development, canonical PDFs remain in the reviewed source set and
 are served through the local application for page-specific citation viewing. The
 OpenAI Vector Store is a remote retrieval index, not local/offline inference.
 Authentication, database, private object storage, usage controls, and Vercel
-hosting remain required for the hosted version. Production deployment is a
-stretch goal after the local demo is credible and tested.
+hosting are deliberately deferred to the optional hosted-demo plan.
 
 ## Explicitly out of scope
 
@@ -114,15 +119,11 @@ manual, applicable IRS instructions, relevant curated forum findings, source car
 and local PDF-page navigation. Support both a short Fast result and a saved Deep
 briefing based on the supplied template.
 
-### 4. Hosted product foundation
-
-Create the Next.js project foundation, authentication, database schema, private document storage, role/access policy, rate limits, and source metadata model.
-
-### 5. Grounded chat
+### 4. Grounded chat
 
 Build chat creation and history for the Mk5 demo build. Require cited answers, expose exact PDF-page links, label source types, and provide safety-focused abstention when primary documentation is insufficient.
 
-### 6. Build briefings and artifacts
+### 5. Build briefings and artifacts
 
 Implement compact garage-prep cards, saved briefing records, a Build Briefings
 tab, structured torque interface, build-spec display, and decision-register display.
@@ -130,7 +131,7 @@ The Build Briefings tab must support returning to previously generated work with
 its readiness state, build phase, source links, unresolved hold points, and creation
 date visible at a glance. Preserve sources and unresolved questions in each artifact.
 
-### 6a. Evidence-first garage-prep pipeline
+### 5a. Evidence-first garage-prep pipeline
 
 Do not ask one broad File Search query to summarize a multi-page mechanical task.
 Before generating a garage-prep card, collect task evidence in distinct categories:
@@ -184,7 +185,7 @@ demo-ready. For front suspension, the evidence set must include the relevant
 tool/parts pages (including Mk5 manual PDF pp. 44 and 47) as well as procedure and
 hold-point pages. Capture card quality and latency for manual-only retrieval.
 
-### 7. Curated community context
+### 6. Curated community context
 
 Add approved Factory Five forum threads, task tags, links, and prominent community-source labeling. Do not enable live forum/general-web search until the manual-grounded core is verified.
 
@@ -201,18 +202,14 @@ prominent caveat that they are last-resort, non-controlling material. Safety-
 critical ambiguity still stops at the surrounding official documentation and a
 direction to consult Factory Five; it never escalates to crowd or web consensus.
 
-### 8. Hosted validation and publication (stretch goal)
-
-Run acceptance tests based on real Mk5 builder questions. Verify citation navigation, access control, rate limiting, mobile/garage usability, error states, source deletion/re-indexing, and production deployment.
-
-### 9. Visual identity and demo polish
+### 7. Visual identity and demo polish
 
 Develop the Garage Goblin logo, app mark, visual language, and presentation-ready
 UI polish. Apply the identity consistently to the landing/chat experience, Build
 Briefings tab, source cards, torque interface, and STOP & VERIFY states while
 preserving information clarity and safety hierarchy.
 
-### 10. Explain-it-like-I-am-five architecture tab
+### 8. Explain-it-like-I-am-five architecture tab
 
 Add a presentation-friendly `How Garage Goblin Works` tab near the end of the
 project. It should explain the product architecture and design choices in simple,
@@ -238,9 +235,12 @@ unnecessary implementation detail.
    Goblin Works” tab. It explains the manual-first architecture, source hierarchy,
    STOP & VERIFY behavior, and canned-versus-live demonstration paths without
    exposing secrets or implementation identifiers.
-5. Treat authentication, persistent database/blob storage, rate limits, and Vercel
-   deployment as the hosted-product stretch sequence after the local demo is
-   credible and evaluated.
+5. The class-demo implementation is effectively complete. Keep the local demo,
+   presentation deck, and script as the presentation baseline; undertake no more
+   app changes unless a rehearsal exposes a material issue.
+6. If browser hosting becomes useful, use the separate, dependency-ordered
+   [`HOSTED_DEMO_PLAN.md`](HOSTED_DEMO_PLAN.md) rather than expanding this class
+   demo plan.
 
 ## Inputs needed from the product owner
 
@@ -254,10 +254,9 @@ unnecessary implementation detail.
 - Authentication policy: initial invited users and permitted sign-in methods.
 - Vercel, Clerk, Neon, OpenAI, and Upstash configuration when implementation reaches each service.
 
-## MVP acceptance criteria
+## Local class-demo acceptance criteria
 
-- An unauthenticated visitor cannot access chat, documents, or saved artifacts.
-- A signed-in approved user can select a predefined Mk5 task or ask a manual question.
+- The local demo supports a predefined Mk5 task or a manual question.
 - The local demo uses real OpenAI retrieval and handles both scripted and
   unscripted questions without inventing missing safety-critical information.
 - Answers identify their source type and link to exact manual PDF pages whenever a manual supports the claim.
