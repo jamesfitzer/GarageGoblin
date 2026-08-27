@@ -24,7 +24,9 @@ local demo remains the primary development and presentation fallback.
   cannot run up API costs.
 
 Vercel can connect directly to the GitHub repository: each pull request receives
-a preview URL, while `main` deploys the production demo URL.
+a preview URL, while `main` deploys the production demo URL. Do **not** import or
+deploy the current unprotected application before authentication works locally:
+its local source routes are not an acceptable public document host.
 
 ## Dependency-ordered implementation
 
@@ -39,28 +41,30 @@ a preview URL, while `main` deploys the production demo URL.
 
 **Done when:** there is a named owner, approved-user list, and spend ceiling.
 
-### 1. Prepare the repository and deployment configuration
+### 1. Add authentication locally before any cloud deployment
 
-- Merge the current demo-script PR and confirm `main` builds locally.
-- Add a production environment-variable checklist without committing secrets.
-- Create a Vercel project by importing `jamesfitzer/GarageGoblin` from GitHub.
-- Configure production and preview deployments; do not turn on public access yet.
-- Add the current OpenAI environment variables in Vercel, using a dedicated API
-  project key rather than a personal key shared elsewhere.
-
-**Done when:** Vercel automatically deploys `main`, and a non-authenticated
-health check renders the sign-in boundary rather than the app.
-
-### 2. Add authentication before exposing any demo data
-
-- Create/link a Clerk application through Vercel or Clerk.
+- Create/link a Clerk application through Clerk or the Vercel Marketplace.
 - Add Clerk middleware and protect pages, API routes, source-view routes, chats,
   and briefings by default.
 - Permit only the approved user list; disable open sign-up.
-- Configure Clerk development, Vercel preview, and production redirect URLs.
+- Verify the protected experience locally with James's account.
 
-**Done when:** a signed-out visitor cannot view a chat, PDF, briefing, source
-metadata, or API response; James can sign in successfully.
+**Done when:** a signed-out local visitor cannot view a chat, PDF, briefing,
+source metadata, or API response; James can sign in successfully.
+
+### 2. Connect authenticated code to Vercel and GitHub
+
+- Confirm `main` builds locally and add the production environment-variable
+  checklist without committing secrets.
+- Create a Vercel project by importing `jamesfitzer/GarageGoblin` from GitHub.
+- Add the Clerk and OpenAI variables for Preview and Production, using a
+  dedicated OpenAI API project key rather than a personal key shared elsewhere.
+- Configure Clerk's Vercel preview and production redirect URLs.
+- Verify preview deployments are protected before treating the production URL as
+  usable.
+
+**Done when:** Vercel automatically deploys `main`, and a signed-out visitor sees
+the sign-in boundary rather than the app.
 
 ### 3. Move browser-only artifacts into persistent storage
 
