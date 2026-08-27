@@ -4,6 +4,7 @@ import { FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 
 import { initialSources } from "@/lib/sources";
 import { torqueSpecs, type TorqueSpec } from "@/lib/torque-specs";
 import type { BriefingArtifact } from "@/lib/briefing-template";
+import { cannedDemoChats, liveDemoPrompts } from "@/lib/demo-fixtures";
 
 type Citation = { id: string; title: string; authority: string; url: string; page?: number };
 type WebResearchSource = { title: string; url: string; sourceType: "Factory Five Forum" | "General web" };
@@ -21,7 +22,7 @@ const phases: SavedBriefing["phase"][] = ["Inventory", "Mock-up", "Assembly", "S
 const readinessStates: SavedBriefing["readiness"][] = ["Ready", "Ready after checks", "Stop pending resolution"];
 
 function newId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
-function makeChat(): Chat { const now = new Date().toISOString(); return { id: newId("chat"), title: "New garage conversation", createdAt: now, updatedAt: now, messages: [] }; }
+function makeChat(title = "New garage conversation"): Chat { const now = new Date().toISOString(); return { id: newId("chat"), title, createdAt: now, updatedAt: now, messages: [] }; }
 function formatDate(date: string) { return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date)); }
 function normalizeBriefingQuestion(question: string) { return question.trim().replace(/\s+/g, " ").toLowerCase(); }
 function requestsExternalResearch(question: string) {
@@ -42,6 +43,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [forumResearchingMessageId, setForumResearchingMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [liveDemoProgress, setLiveDemoProgress] = useState<{ completed: number; total: number } | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [bootComplete, setBootComplete] = useState(false);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -81,6 +83,48 @@ export default function Home() {
   }
   function appendMessage(chatId: string, message: Message, title?: string) {
     setChats((current) => current.map((chat) => chat.id === chatId ? { ...chat, title: title ?? chat.title, updatedAt: message.createdAt, messages: [...chat.messages, message] } : chat));
+  }
+
+  function openCannedDemo() {
+    const now = new Date().toISOString();
+    const demoChats: Chat[] = cannedDemoChats.map((fixture) => ({
+      id: fixture.id,
+      title: fixture.title,
+      createdAt: now,
+      updatedAt: now,
+      messages: fixture.messages.map((message, index) => ({ ...message, id: `${fixture.id}-message-${index}`, createdAt: now })),
+    }));
+    setChats((current) => [...demoChats, ...current.filter((chat) => !chat.id.startsWith("demo-canned-"))]);
+    setActiveChatId(demoChats[0].id); setQuestion(demoChats[0].messages[0].content); setView("chat");
+  }
+
+  async function runLiveDemo() {
+    if (loading || liveDemoProgress) return;
+    setLoading(true); setLiveDemoProgress({ completed: 0, total: liveDemoPrompts.length }); setView("chat");
+    for (const [index, scenario] of liveDemoPrompts.entries()) {
+      const askedAt = new Date().toISOString();
+      const chat = makeChat(scenario.title);
+      const userMessage: Message = { id: newId("message"), role: "user", content: scenario.question, createdAt: askedAt };
+      const liveChat = { ...chat, title: scenario.title, updatedAt: askedAt, messages: [userMessage] };
+      setChats((current) => [liveChat, ...current.filter((item) => item.id !== liveChat.id)]);
+      setActiveChatId(liveChat.id); setQuestion(scenario.question);
+      try {
+        const response = await fetch("/api/briefing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: scenario.question }) });
+        const body = (await response.json()) as BriefingResponse & { error?: string };
+        if (!response.ok) throw new Error(body.error ?? "The Goblin lost the trail.");
+        const answer: Message = { id: newId("message"), role: "assistant", content: body.answer, citations: body.citations, warning: body.warning, torqueSupplement: body.torqueSupplement, briefingArtifact: body.briefingArtifact, webSources: body.webSources, createdAt: new Date().toISOString() };
+        appendMessage(liveChat.id, answer);
+        if (/^prep me for\s*:/i.test(scenario.question)) {
+          const briefing: SavedBriefing = { id: newId("briefing"), chatId: liveChat.id, title: scenario.question, question: scenario.question, content: answer.content, citations: answer.citations ?? [], warning: answer.warning, torqueSupplement: answer.torqueSupplement, briefingArtifact: answer.briefingArtifact, phase: "Assembly", readiness: answer.briefingArtifact?.readiness ?? "Ready after checks", createdAt: answer.createdAt };
+          setBriefings((current) => [briefing, ...current.filter((item) => normalizeBriefingQuestion(item.question) !== normalizeBriefingQuestion(scenario.question))]);
+        }
+      } catch (error) {
+        appendMessage(liveChat.id, { id: newId("message"), role: "assistant", content: error instanceof Error ? error.message : "Unknown error.", citations: [], createdAt: new Date().toISOString() });
+      } finally {
+        setLiveDemoProgress({ completed: index + 1, total: liveDemoPrompts.length });
+      }
+    }
+    setLoading(false); setLiveDemoProgress(null);
   }
 
   async function copyResponse(message: Message) {
@@ -171,6 +215,11 @@ export default function Home() {
         <div><strong>Garage Goblin</strong><span>Factory Five Mk5 Roadster</span><em>Garage systems nominal-ish</em></div>
       </div>
       <button className="new-chat sidebar-new-chat" type="button" onClick={createChat}>+ New conversation</button>
+      <section className="demo-controls" aria-label="Presentation controls">
+        <div><div className="eyebrow">Presentation controls</div><strong>Demo without gambling</strong><p>Canned mode is instant and makes no API calls. Live mode queues four real manual queries.</p></div>
+        <div className="demo-actions"><button type="button" onClick={openCannedDemo} disabled={loading}>Open canned demo</button><button type="button" onClick={runLiveDemo} disabled={loading || Boolean(liveDemoProgress)}>{liveDemoProgress ? `Running live demo · ${liveDemoProgress.completed}/${liveDemoProgress.total}` : "Run live demo"}</button></div>
+        <small>For live fuel-tank forum context, open its result and use <em>Research Factory Five Forum gotchas</em>.</small>
+      </section>
       <nav className="workspace-tabs" role="tablist" aria-label="Garage Goblin workspace">
         <button className={view === "chat" ? "active" : ""} type="button" onClick={() => setView("chat")}>Garage chat</button>
         <button className={view === "briefings" ? "active" : ""} type="button" onClick={() => setView("briefings")}>Build briefings <span>{briefings.length}</span></button>

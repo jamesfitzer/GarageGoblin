@@ -225,14 +225,15 @@ unnecessary implementation detail.
 
 ## Current next sequence
 
-1. Run the final local-demo acceptance pass with four saved artifacts: 2015+ IRS,
-   front suspension, fuel-tank installation, and one unscripted ad-hoc task. Check
-   card usefulness, exact page navigation, selected-build scoping, and latency.
-2. Run one explicit outside-research request during that pass. Confirm the answer
-   is concise, Factory Five Forum results are labeled community context, general
-   web is visibly last-resort, and any saved briefing retains the linked sources.
-3. Tune only the resulting UI/usability issues, then write and rehearse the class
-   demo script and a fallback path using pre-saved briefings/screenshots.
+1. Keep a bundled **Canned demo** path for presentation failure recovery: four
+   read-only, source-linked demo chats (IRS, fuel tank plus forum context, steering,
+   and brake-fluid conflict) that make no API calls.
+2. Keep a **Run live demo** path for the same four selected prompts. It queues them
+   sequentially against the real retrieval service, saves each resulting prep card,
+   and leaves optional fuel-tank forum research as an explicit follow-up action.
+3. Run the final local-demo acceptance pass: check the canned source links, the live
+   queue's progress/error behavior, selected-build scoping, and latency. Rehearse a
+   short class demo script with both the live and failure-recovery paths.
 4. Add the presentation-friendly “How Garage Goblin Works” tab if time permits;
    it is the highest-value remaining class-presentation enhancement.
 5. Treat authentication, persistent database/blob storage, rate limits, and Vercel
