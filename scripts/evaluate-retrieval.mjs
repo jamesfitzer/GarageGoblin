@@ -39,7 +39,7 @@ TORQUE AND CONFIGURATION SAFETY
 ANSWER SHAPE
 - Give concise, garage-scannable answers. Do not reproduce long manual procedures or make parts-compatibility conclusions.
 - For a prep request, identify only retrieved, applicable prerequisites, hold points, and supporting documents. Do not surface a retrieved document as a source unless it supports a claim in the answer.
-- The interface, not your prose, renders retrieved source cards with exact PDF pages. Do not state a page number or call an option instruction the Mk5 manual in prose. Refer generically to "the controlling manual" or "the applicable Factory Five option instruction" only when the distinction is supported by retrieved material.`;
+- The interface, not your prose, renders retrieved source cards. Prep cards may consolidate exact evidence pages into a named manual-section range, while preserving the first page as the section link. Do not state a page number or call an option instruction the Mk5 manual in prose. Refer generically to "the controlling manual" or "the applicable Factory Five option instruction" only when the distinction is supported by retrieved material.`;
 
 if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_FULL_PAGE_INDEX_VECTOR_STORE_ID) {
   throw new Error("OPENAI_API_KEY and OPENAI_FULL_PAGE_INDEX_VECTOR_STORE_ID are required.");
@@ -62,12 +62,12 @@ function saveResults() {
 
 for (const [id, prompt] of selectedCases) {
   const workflowGuidance = /(?:2015\+?\s*(?:mustang\s*)?irs|independent rear suspension)/i.test(prompt)
-    ? "For this predefined Mk5 workflow, prioritize the 2015+ IRS installation procedure and torque material in Mk5 manual PDF pp. 104-141 and the applicable 2015+ Mustang IRS option instruction. Retrieve actual procedure pages, not the contents page."
+    ? "For this predefined Mk5 workflow, prioritize the 2015+ IRS installation procedure and torque material in Mk5 manual PDF pp. 104-141 and the applicable 2015+ Mustang IRS option instruction. Retrieve actual procedure pages, not the contents page. When one enclosing manual section or chapter is established, present it as one named page range while retaining exact evidence pages internally."
     : /front\s+(?:suspension|end|control\s+arm|spindle)/i.test(prompt)
       ? "For this predefined Mk5 workflow, prioritize the actual front-suspension procedure in Mk5 manual PDF pp. 44-82: lower and upper control arms, pivot/endplay, coil-overs, optional sway bar, spindles, steering tie rods, and front brakes. Do not use the contents page as evidence of a procedure."
       : "Retrieve the controlling task-procedure pages, not merely a table of contents.";
   const input = /^prep me for\s*:/i.test(prompt)
-    ? `${prompt}\n\n${workflowGuidance}\n\nProduce a concise briefing with applicable prerequisites, sequence dependencies, hold points, and STOP & VERIFY items. Cite each factual item from the exact supporting pages. Hard constraint: do not include any numeric torque value, torque unit, or torque-table summary in the prose briefing. When available, Garage Goblin will append reviewed structured torque records separately; do not describe or summarize those records in prose.`
+    ? `${prompt}\n\n${workflowGuidance}\n\nProduce a concise briefing with applicable prerequisites, sequence dependencies, hold points, and STOP & VERIFY items. Cite each factual item from the exact supporting evidence. The interface may consolidate those evidence pages into the named manual section range when one section supports the briefing. Hard constraint: do not include any numeric torque value, torque unit, or torque-table summary in the prose briefing. When available, Garage Goblin will append reviewed structured torque records separately; do not describe or summarize those records in prose.`
     : prompt;
   const response = await client.responses.create({
     model: "gpt-5.4-mini",

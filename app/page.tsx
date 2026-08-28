@@ -8,7 +8,7 @@ import { torqueSpecs, type TorqueSpec } from "@/lib/torque-specs";
 import type { BriefingArtifact } from "@/lib/briefing-template";
 import { cannedDemoChats, liveDemoPrompts } from "@/lib/demo-fixtures";
 
-type Citation = { id: string; title: string; authority: string; url: string; page?: number };
+type Citation = { id: string; title: string; authority: string; url: string; page?: number; pageStart?: number; pageEnd?: number; section?: string };
 type WebResearchSource = { title: string; url: string; sourceType: "Factory Five Forum" | "General web" };
 type TorqueSupplement = { title: string; specs: TorqueSpec[] };
 type ForumResearch = { answer: string; sources: { title: string; url: string }[]; warning?: string };
@@ -139,7 +139,16 @@ export default function Home() {
   }
 
   async function copyResponse(message: Message) {
-    const manualSources = (message.citations ?? []).map((citation) => `- ${citation.title}${citation.page ? ` — PDF p. ${citation.page}` : ""} (${citation.authority}): ${citation.url}`);
+    const manualSources = (message.citations ?? []).filter((citation, index, all) => all.findIndex((candidate) => (
+      citation.section
+        ? candidate.section === citation.section && candidate.url.replace(/#page=\d+$/, "") === citation.url.replace(/#page=\d+$/, "")
+        : candidate.id === citation.id
+    )) === index).map((citation) => {
+      const pageLabel = citation.section && citation.pageStart && citation.pageEnd
+        ? ` — ${citation.section}, PDF pp. ${citation.pageStart}–${citation.pageEnd}`
+        : citation.page ? ` — PDF p. ${citation.page}` : "";
+      return `- ${citation.title}${pageLabel} (${citation.authority}): ${citation.url}`;
+    });
     const externalSources = (message.webSources ?? []).map((source) => `- ${source.sourceType}: ${source.url}`);
     const sourceBlock = [...manualSources, ...externalSources];
     const clipboardText = `${message.content}${message.warning ? `\n\nNote: ${message.warning}` : ""}${sourceBlock.length ? `\n\nSources\n${sourceBlock.join("\n")}` : ""}`;
@@ -278,7 +287,7 @@ export default function Home() {
       </aside>
       <section className="panel briefing-detail">{activeBriefing ? <><div className="panel-heading"><div><div className="eyebrow">Saved workbench artifact</div><h2>{activeBriefing.title}</h2></div><span className="readiness">{activeBriefing.readiness}</span></div>
         <p className="briefing-question">{activeBriefing.question}</p>{activeBriefing.briefingArtifact ? <BriefingArtifactView artifact={activeBriefing.briefingArtifact} forumResearch={activeBriefing.forumResearch} onResearchForum={() => { const message = findBriefingMessage(activeBriefing); if (message) researchForum(message.chatId, message.messageId, activeBriefing.question); }} researchingForum={forumResearchingMessageId !== null} /> : <MarkdownContent content={activeBriefing.content} />}{activeBriefing.warning && <div className="notice">{activeBriefing.warning}</div>}{activeBriefing.torqueSupplement && <BriefingTorqueSupplement supplement={activeBriefing.torqueSupplement} />}{activeBriefing.webSources && <WebResearchSources sources={activeBriefing.webSources} />}
-        <div className="briefing-meta"><span>Phase: <strong>{activeBriefing.phase}</strong></span><span>Saved {formatDate(activeBriefing.createdAt)}</span></div><h3>Supporting source pages</h3><CitationCards citations={activeBriefing.citations} />
+        <div className="briefing-meta"><span>Phase: <strong>{activeBriefing.phase}</strong></span><span>Saved {formatDate(activeBriefing.createdAt)}</span></div><h3>Supporting source sections</h3><CitationCards citations={activeBriefing.citations} />
       </> : <div className="empty-state"><h2>No briefing selected</h2><p>Saved manual-grounded answers will collect here so you can switch jobs without losing your place.</p><button type="button" onClick={() => setView("chat")}>Go to garage chat</button></div>}</section>
     </section> : view === "torque" ? <TorqueSpecsWorkspace /> : <HowItWorksWorkspace />}</section>
     {settingsOpen && <div className="settings-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSettingsOpen(false); }}>
@@ -459,14 +468,17 @@ function CitationCards({ citations }: { citations: Citation[] }) {
   const grouped = citations.reduce<Map<string, { citation: Citation; pages: number[] }>>((groups, citation) => {
     const sourceUrl = citation.url.replace(/#page=\d+$/, "");
     const group = groups.get(sourceUrl) ?? { citation, pages: [] };
+    if (!group.citation.section && citation.section) group.citation = citation;
     if (citation.page && !group.pages.includes(citation.page)) group.pages.push(citation.page);
     groups.set(sourceUrl, group);
     return groups;
   }, new Map());
   return <>{[...grouped.values()].map(({ citation, pages }) => {
     const sortedPages = pages.sort((a, b) => a - b);
-    const pageLabel = sortedPages.length ? ` · PDF p${sortedPages.length === 1 ? "." : "p."} ${sortedPages.join(", ")}` : " · page mapping pending";
+    const pageLabel = citation.section && citation.pageStart && citation.pageEnd
+      ? ` · ${citation.section} · PDF pp. ${citation.pageStart}–${citation.pageEnd}`
+      : sortedPages.length ? ` · PDF p${sortedPages.length === 1 ? "." : "p."} ${sortedPages.join(", ")}` : " · page mapping pending";
     const sourceUrl = citation.url.replace(/#page=\d+$/, "");
-    return <div className="source-card" key={sourceUrl}><div><strong>{citation.title}</strong><br /><span className="status">{citation.authority}{pageLabel}</span>{sortedPages.length > 0 && <div className="page-links">{sortedPages.map((page) => <a href={`${sourceUrl}#page=${page}`} target="_blank" rel="noreferrer" key={page}>PDF p. {page}</a>)}</div>}</div><a className="open-document" href={sourceUrl} target="_blank" rel="noreferrer">Open document</a></div>;
+    return <div className="source-card" key={sourceUrl}><div><strong>{citation.title}</strong><br /><span className="status">{citation.authority}{pageLabel}</span>{!citation.section && sortedPages.length > 0 && <div className="page-links">{sortedPages.map((page) => <a href={`${sourceUrl}#page=${page}`} target="_blank" rel="noreferrer" key={page}>PDF p. {page}</a>)}</div>}{citation.section && citation.pageStart && <div className="page-links"><a href={`${sourceUrl}#page=${citation.pageStart}`} target="_blank" rel="noreferrer">Open section at PDF p. {citation.pageStart}</a></div>}</div><a className="open-document" href={sourceUrl} target="_blank" rel="noreferrer">Open document</a></div>;
   })}</>;
 }

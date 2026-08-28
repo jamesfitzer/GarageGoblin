@@ -4,6 +4,9 @@ export type DemoCitation = {
   authority: string;
   url: string;
   page?: number;
+  pageStart?: number;
+  pageEnd?: number;
+  section?: string;
 };
 
 export type DemoMessageFixture = {
@@ -21,6 +24,8 @@ export type DemoChatFixture = {
 };
 
 const mk5 = (page: number): DemoCitation => ({ id: `mk5-roadster-manual-${page}`, title: "Factory Five Mk5 Roadster Assembly Manual", authority: "Factory Five manual", page, url: `/api/sources/mk5-roadster-manual#page=${page}` });
+const mk5Section = (title: string, startPage: number, endPage: number): DemoCitation => ({ id: `mk5-roadster-manual-${startPage}-${endPage}`, title: "Factory Five Mk5 Roadster Assembly Manual", authority: "Factory Five manual", page: startPage, pageStart: startPage, pageEnd: endPage, section: title, url: `/api/sources/mk5-roadster-manual#page=${startPage}` });
+const irsInstructionSection: DemoCitation = { id: "2015-mustang-irs-section-1-40", title: "2015+ Mustang IRS Installation Instructions", authority: "Factory Five option instruction", page: 1, pageStart: 1, pageEnd: 40, section: "IRS Installation Instructions", url: "/api/sources/2015-mustang-irs#page=1" };
 
 /**
  * Read-only fallbacks for the MBA demo. These are intentionally bundled rather
@@ -36,7 +41,7 @@ export const cannedDemoChats: DemoChatFixture[] = [
       {
         role: "assistant",
         content: `## What you're doing\n\n- Stage the selected 2015+ Mustang IRS center section, arms, CV axles, and coil-overs.\n\n## Bring to the car\n\n- IRS parts, arms, CV axles, coil-overs, and their Factory Five fasteners.\n- Drill, 5/8 in. drill bit, 13/16 in. and 15/16 in. wrenches, 13/16 in., 15/16 in., and 18 mm sockets, torque wrench, marker, ruler, mallet, and a helper.\n\n## Do this\n\n- Confirm the IRS path, then prepare the Mustang spindles and toe-adjustment arms.\n- Install the center section with help, then build and hang the coil-overs.\n- Leave selected IRS brakes and sway bar as their own follow-on procedures.\n\n## Watch for\n\n- The vent nipple may be taped inside the box.\n- Verify each shock's rebound setting before installation.\n- Keep brake-hose slack while the suspension is at droop.\n\n## Verify before closing\n\n- Check shock jam nuts, bump stops, spring-seat position, and hose routing before finalizing.`,
-        citations: [mk5(104), mk5(105), mk5(111)],
+        citations: [mk5Section("Optional Independent Rear Suspension", 104, 141), irsInstructionSection],
       },
     ],
   },
