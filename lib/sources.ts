@@ -19,6 +19,43 @@ export type Source = {
   initialPage: number;
 };
 
+export type SourceSection = {
+  title: string;
+  startPage: number;
+  endPage: number;
+};
+
+const sourceSections: Array<SourceSection & { sourceId: SourceId; matches: RegExp }> = [
+  {
+    sourceId: "mk5-roadster-manual",
+    title: "Optional Independent Rear Suspension",
+    startPage: 104,
+    endPage: 141,
+    matches: /(?:\birs\b|independent rear suspension|rear suspension|center section|cv axle)/i,
+  },
+  {
+    sourceId: "mk5-roadster-manual",
+    title: "Front Suspension",
+    startPage: 44,
+    endPage: 82,
+    matches: /front suspension|front end|control arm|front spindle/i,
+  },
+  {
+    sourceId: "mk5-roadster-manual",
+    title: "Fuel System",
+    startPage: 166,
+    endPage: 191,
+    matches: /fuel|tank|fuel[-\s]?line|filler|sender|vent/i,
+  },
+  {
+    sourceId: "2015-mustang-irs",
+    title: "IRS Installation Instructions",
+    startPage: 1,
+    endPage: 40,
+    matches: /(?:\birs\b|independent rear suspension|center section|cv axle)/i,
+  },
+];
+
 export const initialSources: Source[] = [
   {
     id: "mk5-roadster-manual",
@@ -116,4 +153,8 @@ export function getSourceFromRetrievalFilename(filename: string) {
 
 export function getSource(id: string) {
   return initialSources.find((source) => source.id === id);
+}
+
+export function getSourceSection(sourceId: SourceId, question: string) {
+  return sourceSections.find((section) => section.sourceId === sourceId && section.matches.test(question));
 }

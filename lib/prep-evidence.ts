@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { VectorStoreSearchResponse } from "openai/resources/vector-stores/vector-stores";
 import { getDemoBuildContext, getDemoBuildSafetyGaps, renderDemoBuildContext } from "@/lib/demo-build-context";
-import { getSource, getSourceFromRetrievalFilename } from "@/lib/sources";
+import { getSource, getSourceFromRetrievalFilename, getSourceSection } from "@/lib/sources";
 
 const PREP_MODEL = "gpt-5.4-mini";
 const MAX_PROCEDURE_AREAS = 9;
@@ -19,6 +19,9 @@ type PrepPlan = {
     name: string;
     documentFilename: string;
     startPage: number | null;
+    sectionTitle: string;
+    sectionStartPage: number | null;
+    sectionEndPage: number | null;
     scope: ProcedureScope;
   }>;
 };
@@ -55,6 +58,9 @@ export type PrepEvidenceResult = {
     title: string;
     authority: string;
     page: number | undefined;
+    pageStart?: number;
+    pageEnd?: number;
+    section?: string;
     url: string;
   }>;
   procedureAreas: string[];
@@ -75,9 +81,12 @@ const planSchema = {
           name: { type: "string" },
           documentFilename: { type: "string" },
           startPage: { type: ["integer", "null"] },
+          sectionTitle: { type: "string" },
+          sectionStartPage: { type: ["integer", "null"] },
+          sectionEndPage: { type: ["integer", "null"] },
           scope: { type: "string", enum: ["core", "follow_on", "excluded"] },
         },
-        required: ["name", "documentFilename", "startPage", "scope"],
+        required: ["name", "documentFilename", "startPage", "sectionTitle", "sectionStartPage", "sectionEndPage", "scope"],
         additionalProperties: false,
       },
       minItems: 1,
@@ -150,6 +159,21 @@ function applyDemoBuildSelection(question: string, areas: PrepPlan["procedureAre
     ));
 }
 
+function ensureControllingIrsArea(question: string, areas: PrepPlan["procedureAreas"]) {
+  if (!/(?:\birs\b|independent rear suspension|2015\+?\s*(?:mustang\s*)?irs)/i.test(question)) return areas;
+  const controllingArea: PrepPlan["procedureAreas"][number] = {
+    name: "Optional Independent Rear Suspension",
+    documentFilename: "mk5-roadster-manual.pdf",
+    startPage: 104,
+    sectionTitle: "Optional Independent Rear Suspension",
+    sectionStartPage: 104,
+    sectionEndPage: 141,
+    scope: "core",
+  };
+  const supplementalAreas = areas.filter((area) => sourcePrefix(area.documentFilename) !== "mk5-roadster-manual");
+  return [controllingArea, ...supplementalAreas];
+}
+
 function belongsToSource(filename: string, prefix: string) {
   const normalizedFilename = filename.toLowerCase();
   const normalizedPrefix = prefix.toLowerCase();
@@ -163,10 +187,29 @@ function pageFromFilename(filename: string) {
   return match ? Number(match[1]) : null;
 }
 
+function sectionForEvidence(plan: PrepPlan, filename: string, page: number | null, question: string) {
+  const prefix = sourcePrefix(filename);
+  const plannedSection = plan.procedureAreas.find((area) => {
+    if (sourcePrefix(area.documentFilename) !== prefix || !area.sectionTitle || area.sectionStartPage === null || area.sectionEndPage === null) return false;
+    return page === null || (page >= area.sectionStartPage && page <= area.sectionEndPage);
+  });
+  if (plannedSection && plannedSection.sectionStartPage !== null && plannedSection.sectionEndPage !== null) {
+    return { title: plannedSection.sectionTitle, startPage: plannedSection.sectionStartPage, endPage: plannedSection.sectionEndPage };
+  }
+  const mapped = getSourceFromRetrievalFilename(filename);
+  return mapped ? getSourceSection(mapped.source.id, question) : undefined;
+}
+
 async function planTask(client: OpenAI, vectorStoreId: string, question: string, buildContext: string): Promise<PrepPlan> {
   const response = await client.responses.create({
     model: PREP_MODEL,
-    instructions: `You plan document retrieval for a hands-on build task. Use File Search to inspect the uploaded manuals, especially their tables of contents, section headings, and task-adjacent procedures. Identify the distinct procedure areas a builder must prepare for. Return exact manual section terminology, not generic automotive guesses. For every area, return the exact filename of the uploaded document that controls that area; a page-index filename such as "manual-name-p0002.txt" is acceptable. Also return the section's PDF start page when the table of contents or retrieved page establishes it; otherwise return null. Do not assign a similarly named area from a different subsystem or document.
+    instructions: `You plan document retrieval for a hands-on build task. Use File Search to inspect the uploaded manuals, especially their tables of contents, section headings, and task-adjacent procedures. Identify the distinct procedure areas a builder must prepare for. Return exact manual terminology, not generic automotive guesses. For every area, return the exact filename of the uploaded document that controls that area; a page-index filename such as "manual-name-p0002.txt" is acceptable.
+
+For every area, identify the enclosing manual section or chapter that a human builder would use as the document reference. Return its exact heading as sectionTitle and its PDF start and end pages as sectionStartPage and sectionEndPage. Derive both boundaries from a table of contents or an explicit section-heading transition in retrieved material. If either boundary cannot be established from the retrieved manual, return null for that boundary rather than guessing. Several procedure areas may share one enclosing section and range.
+
+For any 2015+ IRS request, the Factory Five Mk5 Roadster Assembly Manual is the controlling primary source and must be included as a core procedure area. The supplemental 2015+ Mustang IRS instruction may add configuration-specific detail, but it must not replace the Mk5 manual as the primary source.
+
+Do not assign a similarly named area from a different subsystem or document.
 
 Use the supplied build configuration to classify every included area:
 - core: needed to perform the requested primary task in the current garage session;
@@ -192,11 +235,14 @@ Do not include unselected variants. Do not repeat the broad requested task itsel
   const normalizedTask = normalizedProcedureName(plan.task.trim() || fallbackTask);
   return {
     task: plan.task.trim() || fallbackTask,
-    procedureAreas: applyDemoBuildSelection(question, plan.procedureAreas
+    procedureAreas: ensureControllingIrsArea(question, applyDemoBuildSelection(question, plan.procedureAreas
       .map((area): PrepPlan["procedureAreas"][number] => ({
         name: area.name.trim(),
         documentFilename: area.documentFilename.trim(),
         startPage: Number.isInteger(area.startPage) && (area.startPage ?? 0) > 0 ? area.startPage : null,
+        sectionTitle: area.sectionTitle.trim(),
+        sectionStartPage: Number.isInteger(area.sectionStartPage) && (area.sectionStartPage ?? 0) > 0 ? area.sectionStartPage : null,
+        sectionEndPage: Number.isInteger(area.sectionEndPage) && (area.sectionEndPage ?? 0) > 0 ? area.sectionEndPage : null,
         scope: area.scope === "follow_on" || area.scope === "excluded" ? area.scope : "core",
       }))
       .filter((area) => area.name && area.documentFilename)
@@ -205,7 +251,7 @@ Do not include unselected variants. Do not repeat the broad requested task itsel
         return normalizedArea !== normalizedTask && !normalizedTask.startsWith(`${normalizedArea} `);
       })
       .filter((area, index, all) => all.findIndex((item) => item.name === area.name && item.documentFilename === area.documentFilename && item.scope === area.scope) === index)
-      .slice(0, MAX_PROCEDURE_AREAS)),
+      .slice(0, MAX_PROCEDURE_AREAS))),
   };
 }
 
@@ -354,7 +400,7 @@ The six output fields mean:
 - stopAndVerify: only real unresolved safety, fitment, or configuration gaps. If none are evidenced, return one bullet saying "No additional unresolved safety-critical gap retrieved."
 
 Every factual bullet must list only the one or two evidence IDs that directly support it. Use only IDs present in the supplied evidence, and honor each evidence item's Scope field. Use the BUILD CONFIGURATION to resolve selected versus unselected variants; it does not authorize unsupported mechanical instructions. If the configuration says a manual procedure is not the selected configuration, do not mention or use that procedure anywhere in the card. If the configuration names an unindexed vendor-document gap affecting core work, state it plainly in STOP & VERIFY. Refer to selected components as selected, not optional. A missing-information statement may use an empty evidenceIds array. Never put citations in the bullet text. Do not include forum information. Do not include numeric torque values or units; reviewed structured torque data is rendered separately. Keep the rendered card under about 260 words.`,
-    input: `REQUEST\n${question}\n\nBUILD CONFIGURATION\n${buildContext}\n\nDISCOVERED PROCEDURE AREAS\n${plan.procedureAreas.filter((area) => area.scope !== "excluded").map((area) => `- [${area.scope}] ${area.name} — controlling upload: ${area.documentFilename}${area.startPage ? ` — starts on PDF p. ${area.startPage}` : ""}`).join("\n")}\n\nSECTION STARTS NOT RETRIEVED AFTER ONE REPAIR PASS\n${missingSectionStarts.length ? missingSectionStarts.map((item) => `- ${item}`).join("\n") : "None"}\n\nMANUAL EVIDENCE\n${serializeEvidence(evidence)}`,
+    input: `REQUEST\n${question}\n\nBUILD CONFIGURATION\n${buildContext}\n\nDISCOVERED PROCEDURE AREAS\n${plan.procedureAreas.filter((area) => area.scope !== "excluded").map((area) => `- [${area.scope}] ${area.name} — controlling upload: ${area.documentFilename}${area.startPage ? ` — procedure starts on PDF p. ${area.startPage}` : ""}${area.sectionTitle ? ` — enclosing section: ${area.sectionTitle}${area.sectionStartPage && area.sectionEndPage ? ` (PDF pp. ${area.sectionStartPage}–${area.sectionEndPage})` : " (range not established)"}` : ""}`).join("\n")}\n\nSECTION STARTS NOT RETRIEVED AFTER ONE REPAIR PASS\n${missingSectionStarts.length ? missingSectionStarts.map((item) => `- ${item}`).join("\n") : "None"}\n\nMANUAL EVIDENCE\n${serializeEvidence(evidence)}`,
     text: {
       format: {
         type: "json_schema",
@@ -467,16 +513,25 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
   ).filter((id) => allowedIds.has(id));
   const usedEvidence = usedIds.map((id) => evidence.find((item) => item.id === id)).filter((item): item is EvidenceItem => Boolean(item));
   const evidenceCitations = usedEvidence
-    .map((item) => getSourceFromRetrievalFilename(item.filename))
+    .map((item) => {
+      const citation = getSourceFromRetrievalFilename(item.filename);
+      if (!citation) return undefined;
+      return { ...citation, section: sectionForEvidence(plan, item.filename, citation.page ?? null, question) };
+    })
     .filter((citation): citation is NonNullable<typeof citation> => Boolean(citation))
     .filter((citation, index, all) => all.findIndex((item) => item.source.id === citation.source.id && item.page === citation.page) === index)
-    .map(({ source, page }) => ({
+    .map(({ source, page, section }) => {
+      return {
       id: `${source.id}-${page ?? "unmapped"}`,
       title: source.title,
       authority: source.authority,
       page,
-      url: `/api/sources/${source.id}#page=${page ?? source.initialPage}`,
-    }));
+      pageStart: section?.startPage,
+      pageEnd: section?.endPage,
+      section: section?.title,
+      url: `/api/sources/${source.id}#page=${section?.startPage ?? page ?? source.initialPage}`,
+      };
+    });
   const safetyGapCitations = configurationSafetyGaps
     .flatMap((gap) => gap.citations ?? [])
     .map(({ sourceId, page }) => {
@@ -490,7 +545,21 @@ export async function buildDynamicPrepCard(client: OpenAI, vectorStoreId: string
       } : undefined;
     })
     .filter((citation): citation is NonNullable<typeof citation> => Boolean(citation));
-  const citations = [...evidenceCitations, ...safetyGapCitations]
+  const primaryIrsSection = /(?:\birs\b|independent rear suspension|2015\+?\s*(?:mustang\s*)?irs)/i.test(question)
+    ? getSourceSection("mk5-roadster-manual", question)
+    : undefined;
+  const primaryIrsCitation = primaryIrsSection ? {
+    id: "mk5-roadster-manual-section-104-141",
+    title: "Factory Five Mk5 Roadster Assembly Manual",
+    authority: "Factory Five manual" as const,
+    page: primaryIrsSection.startPage,
+    pageStart: primaryIrsSection.startPage,
+    pageEnd: primaryIrsSection.endPage,
+    section: primaryIrsSection.title,
+    url: `/api/sources/mk5-roadster-manual#page=${primaryIrsSection.startPage}`,
+  } : undefined;
+  const citations = [primaryIrsCitation, ...evidenceCitations, ...safetyGapCitations]
+    .filter((citation): citation is NonNullable<typeof citation> => Boolean(citation))
     .filter((citation, index, all) => all.findIndex((item) => item.id === citation.id) === index);
 
   const warning = missingSectionStarts.length
