@@ -45,7 +45,7 @@ button, input, select { font: inherit; } button { cursor: pointer; }
 .chat-row strong, .briefing-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .84rem; }
 .chat-row.active strong, .briefing-row.active strong { color: var(--acid); }
 .chat-row span, .briefing-row span, .briefing-row small { margin-top: .22rem; color: var(--muted); font-size: .72rem; }
-.source-library { border-top: 1px solid var(--line); padding: .85rem .35rem; color: var(--muted); font-size: .82rem; }
+.source-library { max-height: min(36vh, 26rem); overflow-y: auto; border-top: 1px solid var(--line); padding: .85rem .35rem; color: var(--muted); font-size: .82rem; }
 .source-library summary { cursor: pointer; color: var(--ink); font-weight: 800; }
 .source { display: block; border-top: 1px solid var(--line); padding: .7rem 0; color: var(--ink); text-decoration: none; }
 .source:hover, .source-card a { color: var(--acid); }
