@@ -1,11 +1,12 @@
 import OpenAI from "openai";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { garageGoblinInstructions } from "@/lib/garage-goblin-instructions";
 import { getSourceFromRetrievalFilename } from "@/lib/sources";
 import { getBriefingTorqueSupplement } from "@/lib/briefing-torque";
 import { buildDynamicPrepCard } from "@/lib/prep-evidence";
 import { buildBriefingArtifact } from "@/lib/briefing-template";
 import { getVerifiedTorqueResponse } from "@/lib/verified-torque";
+import { consumeLiveQuota } from "@/lib/workspace-store";
 
 export const runtime = "nodejs";
 const openAiRuntimeKey = process.env.OPENAI_PRODUCTION_API_KEY;
@@ -157,6 +158,23 @@ export async function POST(request: Request) {
 
   const verifiedTorqueResponse = getVerifiedTorqueResponse(question);
   if (verifiedTorqueResponse) return Response.json(verifiedTorqueResponse);
+
+  const unlimitedEmail = process.env.GARAGE_GOBLIN_UNLIMITED_EMAIL?.trim().toLowerCase();
+  const user = unlimitedEmail ? await currentUser() : null;
+  const primaryEmail = user?.emailAddresses.find((email) => email.id === user.primaryEmailAddressId)?.emailAddress.trim().toLowerCase();
+  if (!unlimitedEmail || primaryEmail !== unlimitedEmail) {
+    let quota;
+    try {
+      quota = await consumeLiveQuota(userId);
+    } catch {
+      return Response.json({ error: "Usage protection is temporarily unavailable, so Garage Goblin is not making a paid AI request. Please try again shortly." }, { status: 503 });
+    }
+    if (!quota.allowed) {
+      if (quota.period === "day") return Response.json({ error: "Daily live-request limit reached (10 requests per day). Canned Demo remains available, or try again tomorrow." }, { status: 429 });
+      if (quota.period === "month") return Response.json({ error: "Monthly live-request limit reached (25 requests per month). Canned Demo remains available; live requests resume next month." }, { status: 429 });
+      return Response.json({ error: "Usage protection is temporarily unavailable, so Garage Goblin is not making a paid AI request. Please try again shortly." }, { status: 503 });
+    }
+  }
 
   const isPrepRequest = /^prep me for\s*:/i.test(question);
   const torqueSupplement = isPrepRequest ? getBriefingTorqueSupplement(question) : undefined;

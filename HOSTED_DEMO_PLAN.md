@@ -105,8 +105,11 @@ the index must be recreated.
 
 ### 6. Limit cost and make failures survivable
 
-- Provision Upstash Redis and enforce per-user request limits for chat, briefing,
-  and forum-research actions.
+- Use Neon usage counters and enforce per-user request limits for chat, briefing,
+  and forum-research actions without adding another vendor.
+- For the Neon-backed MVP, use 10 live requests per user per day and 25 per
+  user per month; keep the owner's configured email exempt and keep canned demo
+  actions free.
 - Add clear messages for limit reached, OpenAI errors, and unavailable retrieval.
 - Keep Canned Demo available as a zero-API presentation fallback.
 - Ensure no API key, database string, blob token, or source file URL is exposed
