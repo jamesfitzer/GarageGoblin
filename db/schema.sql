@@ -13,3 +13,12 @@ CREATE TABLE IF NOT EXISTS user_workspaces (
 );
 
 CREATE INDEX IF NOT EXISTS user_workspaces_updated_at_idx ON user_workspaces(updated_at);
+
+CREATE TABLE IF NOT EXISTS usage_limits (
+  clerk_user_id TEXT PRIMARY KEY REFERENCES app_users(clerk_user_id) ON DELETE CASCADE,
+  daily_window DATE NOT NULL DEFAULT CURRENT_DATE,
+  daily_count INTEGER NOT NULL DEFAULT 0 CHECK (daily_count >= 0),
+  monthly_window DATE NOT NULL DEFAULT DATE_TRUNC('month', CURRENT_DATE)::date,
+  monthly_count INTEGER NOT NULL DEFAULT 0 CHECK (monthly_count >= 0),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

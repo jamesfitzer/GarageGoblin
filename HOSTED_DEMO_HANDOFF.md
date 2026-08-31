@@ -56,6 +56,7 @@ application contract:
 - `OPENAI_API_KEY` and the existing vector-store IDs
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`
 - `DATABASE_URL` (Neon)
+- `GARAGE_GOBLIN_UNLIMITED_EMAIL` (server-only quota exemption for the owner)
 - `BLOB_READ_WRITE_TOKEN` (Vercel Blob)
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 

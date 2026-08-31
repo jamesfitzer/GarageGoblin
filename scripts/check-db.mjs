@@ -8,11 +8,11 @@ const rows = await sql`
   SELECT table_name
   FROM information_schema.tables
   WHERE table_schema = ${"public"}
-    AND table_name IN (${"app_users"}, ${"user_workspaces"})
+    AND table_name IN (${"app_users"}, ${"user_workspaces"}, ${"usage_limits"})
   ORDER BY table_name
 `;
 const tables = rows.map((row) => row.table_name);
-const expected = ["app_users", "user_workspaces"];
+const expected = ["app_users", "usage_limits", "user_workspaces"];
 if (tables.length !== expected.length || tables.some((table, index) => table !== expected[index])) {
   throw new Error(`Neon is reachable, but the expected schema is incomplete. Found: ${tables.join(", ") || "none"}`);
 }
