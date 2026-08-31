@@ -122,7 +122,8 @@ export default function Home() {
 
   function createChat() { const chat = makeChat(); setChats((current) => [chat, ...current]); setActiveChatId(chat.id); setView("chat"); }
   function resetLocalWorkspace() {
-    if (!window.confirm("Reset all local Garage Goblin chats and saved briefings on this browser?")) return;
+    const scope = remotePersistence === true ? "on this browser and in the garage database" : "on this browser";
+    if (!window.confirm(`Reset all Garage Goblin chats and saved briefings ${scope}? This cannot be undone.`)) return;
     const firstChat = makeChat();
     window.localStorage.removeItem(storageKey);
     setChats([firstChat]); setActiveChatId(firstChat.id); setBriefings([]); setActiveBriefingId(null); setQuestion(quickPrompts[0]); setView("chat");
@@ -288,7 +289,7 @@ export default function Home() {
         <a className="source" href="/api/sources/2015-irs-swaybar#page=1" target="_blank" rel="noreferrer">2015 IRS Sway Bar Instructions</a>
         <a className="source" href="/api/sources/koni-irs-coil-overs#page=1" target="_blank" rel="noreferrer">Koni IRS Coil-Over Instructions</a>
       </details>
-      <button className="reset-workspace" type="button" onClick={resetLocalWorkspace}>Reset local demo workspace</button>
+      <button className="reset-workspace" type="button" onClick={resetLocalWorkspace}>Reset workspace</button>
     </aside>
     <section className="app-main">
       <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : view === "torque" ? "Torque specs" : "How Garage Goblin works"}</h1></div><div className="account-controls"><span className="status">{remotePersistence === null ? "Connecting to garage database…" : persistenceFailure === "save" ? "Database sync issue · local copy retained" : remotePersistence ? "Saved to garage database" : "Local-only workspace"}</span><UserButton /></div></header>
