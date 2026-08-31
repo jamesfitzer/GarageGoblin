@@ -284,10 +284,7 @@ export default function Home() {
         <div className="chat-list">{chats.map((chat) => <button className={chat.id === activeChatId ? "chat-row active" : "chat-row"} type="button" key={chat.id} onClick={() => { setActiveChatId(chat.id); setView("chat"); }}><strong>{chat.title}</strong><span>{chat.messages.length ? `${chat.messages.length} messages · ${formatDate(chat.updatedAt)}` : "Empty conversation"}</span></button>)}</div>
       </section>
       <details className="source-library"><summary>Initial official sources</summary><p className="status">Manual-first retrieval proof.</p>
-        <a className="source" href="/api/sources/mk5-roadster-manual#page=104" target="_blank" rel="noreferrer">Mk5 Roadster Assembly Manual<small>IRS starts at PDF p. 104</small></a>
-        <a className="source" href="/api/sources/2015-mustang-irs#page=1" target="_blank" rel="noreferrer">2015+ Mustang IRS Instructions</a>
-        <a className="source" href="/api/sources/2015-irs-swaybar#page=1" target="_blank" rel="noreferrer">2015 IRS Sway Bar Instructions</a>
-        <a className="source" href="/api/sources/koni-irs-coil-overs#page=1" target="_blank" rel="noreferrer">Koni IRS Coil-Over Instructions</a>
+        {initialSources.map((source) => <a className="source" href={`/api/sources/${source.id}#page=${source.initialPage}`} target="_blank" rel="noreferrer" key={source.id}>{source.title}{source.id === "mk5-roadster-manual" && <small>IRS starts at PDF p. 104</small>}</a>)}
       </details>
       <button className="reset-workspace" type="button" onClick={resetLocalWorkspace}>Reset workspace</button>
     </aside>
