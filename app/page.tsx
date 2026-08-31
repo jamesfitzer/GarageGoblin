@@ -18,6 +18,7 @@ type Chat = { id: string; title: string; createdAt: string; updatedAt: string; m
 type SavedBriefing = { id: string; chatId: string; title: string; question: string; content: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; phase: "Inventory" | "Mock-up" | "Assembly" | "Setup" | "Commissioning"; readiness: "Ready" | "Ready after checks" | "Stop pending resolution"; createdAt: string };
 type StoredWorkspace = { chats: Chat[]; activeChatId: string; briefings: SavedBriefing[] };
 type WorkspaceView = "chat" | "briefings" | "torque" | "how-it-works";
+type WorkspaceResponse = { workspace?: StoredWorkspace | null; error?: string };
 
 const storageKey = "garage-goblin.local-workspace.v1";
 const quickPrompts = ["Prep me for: 2015+ IRS installation.", "What gear oil and friction modifier does this 2015+ IRS need?", "Can I drill or grind the IRS mount so the fourth bolt goes in?"];
@@ -50,25 +51,59 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [bootComplete, setBootComplete] = useState(false);
+  const [remotePersistence, setRemotePersistence] = useState<boolean | null>(null);
+  const [persistenceFailure, setPersistenceFailure] = useState<"load" | "save" | null>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem(storageKey);
-      if (saved) {
-        const workspace = JSON.parse(saved) as StoredWorkspace;
-        if (workspace.chats?.length && workspace.activeChatId) {
-          setChats(workspace.chats); setActiveChatId(workspace.activeChatId); setBriefings(workspace.briefings ?? []); setHydrated(true); return;
+    let cancelled = false;
+    const localWorkspace = () => {
+      try {
+        const saved = window.localStorage.getItem(storageKey);
+        if (saved) {
+          const workspace = JSON.parse(saved) as StoredWorkspace;
+          if (workspace.chats?.length && workspace.activeChatId) return workspace;
         }
+      } catch { /* A broken cache should not prevent a new workspace. */ }
+      return null;
+    };
+    const applyWorkspace = (workspace: StoredWorkspace | null) => {
+      if (cancelled) return;
+      const nextWorkspace = workspace ?? { chats: [makeChat()], activeChatId: "", briefings: [] };
+      if (!nextWorkspace.activeChatId) nextWorkspace.activeChatId = nextWorkspace.chats[0].id;
+      setChats(nextWorkspace.chats); setActiveChatId(nextWorkspace.activeChatId); setBriefings(nextWorkspace.briefings ?? []); setHydrated(true);
+    };
+    async function loadWorkspace() {
+      const cached = localWorkspace();
+      try {
+        const response = await fetch("/api/workspace", { cache: "no-store" });
+        if (!response.ok) throw new Error("Remote workspace unavailable");
+        const body = await response.json() as WorkspaceResponse;
+        setRemotePersistence(true);
+        setPersistenceFailure(null);
+        applyWorkspace(body.workspace ?? cached);
+      } catch {
+        setRemotePersistence(false);
+        setPersistenceFailure("load");
+        applyWorkspace(cached);
       }
-    } catch { /* A broken cache should not prevent a new workspace. */ }
-    const firstChat = makeChat(); setChats([firstChat]); setActiveChatId(firstChat.id); setHydrated(true);
+    }
+    void loadWorkspace();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (!hydrated || !activeChatId) return;
-    window.localStorage.setItem(storageKey, JSON.stringify({ chats, activeChatId, briefings }));
-  }, [activeChatId, briefings, chats, hydrated]);
+    const workspace = { chats, activeChatId, briefings };
+    window.localStorage.setItem(storageKey, JSON.stringify(workspace));
+    if (remotePersistence !== true) return;
+    const saveTimer = window.setTimeout(() => {
+      void fetch("/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace }) })
+        .then((response) => { if (!response.ok) throw new Error("Workspace save failed"); setPersistenceFailure(null); })
+        .catch(() => setPersistenceFailure("save"));
+    }, 400);
+    return () => window.clearTimeout(saveTimer);
+  }, [activeChatId, briefings, chats, hydrated, remotePersistence]);
 
   const activeChat = useMemo(() => chats.find((chat) => chat.id === activeChatId) ?? null, [activeChatId, chats]);
   const activeBriefing = useMemo(() => briefings.find((briefing) => briefing.id === activeBriefingId) ?? null, [activeBriefingId, briefings]);
@@ -256,7 +291,8 @@ export default function Home() {
       <button className="reset-workspace" type="button" onClick={resetLocalWorkspace}>Reset local demo workspace</button>
     </aside>
     <section className="app-main">
-      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : view === "torque" ? "Torque specs" : "How Garage Goblin works"}</h1></div><div className="account-controls"><span className="status">Local-only workspace</span><UserButton /></div></header>
+      <header className="app-header"><div><div className="eyebrow">Factory Five Mk5 Roadster / Local Retrieval Proof</div><h1>{view === "chat" ? (activeChat?.title ?? "Garage chat") : view === "briefings" ? "Build briefings" : view === "torque" ? "Torque specs" : "How Garage Goblin works"}</h1></div><div className="account-controls"><span className="status">{remotePersistence === null ? "Connecting to garage database…" : persistenceFailure === "save" ? "Database sync issue · local copy retained" : remotePersistence ? "Saved to garage database" : "Local-only workspace"}</span><UserButton /></div></header>
+      {persistenceFailure && <div className="persistence-banner" role="alert"><strong>Database unavailable</strong><span>{persistenceFailure === "save" ? "Your latest changes are being kept only in this browser and may not appear on another device." : "This workspace is running from browser storage only. Changes may not appear on another device."}</span></div>}
     {view === "chat" ? <section className="chat-workspace">
         <div className="conversation" aria-live="polite" ref={conversationRef}>
           {!activeChat?.messages.length && <p className="empty-state">Ask a manual question. This conversation will remain here on this browser.</p>}
