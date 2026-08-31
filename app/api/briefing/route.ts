@@ -8,6 +8,7 @@ import { buildBriefingArtifact } from "@/lib/briefing-template";
 import { getVerifiedTorqueResponse } from "@/lib/verified-torque";
 
 export const runtime = "nodejs";
+const openAiRuntimeKey = process.env.OPENAI_PRODUCTION_API_KEY;
 
 type ForumSource = { title: string; url: string };
 type WebResearchSource = ForumSource & { sourceType: "Factory Five Forum" | "General web" };
@@ -56,8 +57,8 @@ export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  if (!process.env.OPENAI_API_KEY) {
-    return Response.json({ error: "OPENAI_API_KEY is missing. Add it to .env.local and restart the dev server." }, { status: 503 });
+  if (!openAiRuntimeKey) {
+    return Response.json({ error: "OPENAI_PRODUCTION_API_KEY is missing. Add it to the deployment environment and restart the dev server." }, { status: 503 });
   }
   const vectorStoreId = process.env.OPENAI_FULL_PAGE_INDEX_VECTOR_STORE_ID ?? process.env.OPENAI_PAGE_INDEX_VECTOR_STORE_ID ?? process.env.OPENAI_VECTOR_STORE_ID;
   if (!vectorStoreId) {
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
   const isForumResearch = body.forumResearch === true;
   const isWebResearch = body.webResearch === true || requestsExternalResearch(question);
   if (isForumResearch) {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = new OpenAI({ apiKey: openAiRuntimeKey });
     let response;
     try {
       response = await client.responses.create({
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
   }
 
   if (isWebResearch) {
-    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = new OpenAI({ apiKey: openAiRuntimeKey });
     const researchInput = context ? `REQUEST\n${question}\n\nRELEVANT PRIOR CHAT\n${context}` : question;
     try {
       const [forumResponse, webResponse] = await Promise.all([
@@ -159,7 +160,7 @@ export async function POST(request: Request) {
 
   const isPrepRequest = /^prep me for\s*:/i.test(question);
   const torqueSupplement = isPrepRequest ? getBriefingTorqueSupplement(question) : undefined;
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const client = new OpenAI({ apiKey: openAiRuntimeKey });
   if (isPrepRequest) {
     try {
       const prep = await buildDynamicPrepCard(client, vectorStoreId, question);
