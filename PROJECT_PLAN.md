@@ -60,6 +60,32 @@ hosting are deliberately deferred to the optional hosted-demo plan.
 - Forum content treated as an authoritative source.
 - Unauthenticated or unlimited public AI access.
 
+## Future product diversion: recommendation engine monetization
+
+This is a post-class product direction, not part of the MVP implementation. The
+recommendation engine can support a respectful hybrid business model:
+
+- **Free tier:** unprompted, contextual recommendations for relevant parts,
+  tools, and vendors at the builder's current stage. These may be affiliate or
+  sponsored recommendations, but only after fitment and usefulness make the
+  item eligible.
+- **Paid builder tier:** a clean, sponsor-free core experience with deeper
+  build history, saved artifacts, and research. Paid users can explicitly ask
+  for product help or enter a shopping/concierge mode.
+- **Vendor revenue:** affiliate links, clearly labeled sponsored placements,
+  and eventually qualified leads or curated build kits.
+
+The governing product rule is: **fitment and usefulness decide eligibility;
+sponsorship may only influence ranking among eligible recommendations.** A
+commercial relationship must never change a manual-grounded answer, torque
+value, compatibility conclusion, or safety stop. Every recommendation should
+explain why it surfaced, identify Factory Five versus community evidence, show
+the vendor relationship, and provide a dismiss/hide control.
+
+The class mock may show this as a conceptual “Recommendations engine” panel.
+It must be labeled future direction and must not imply that billing, vendor
+feeds, affiliate tracking, or live product fitment are implemented.
+
 ## Architecture decisions
 
 - Deploy the Next.js App Router application to Vercel.
@@ -238,7 +264,11 @@ unnecessary implementation detail.
 5. The class-demo implementation is effectively complete. Keep the local demo,
    presentation deck, and script as the presentation baseline; undertake no more
    app changes unless a rehearsal exposes a material issue.
-6. If browser hosting becomes useful, use the separate, dependency-ordered
+6. **Future monetization diversion (strategy/mock only):** show the contextual
+   recommendations model in the canned `How it works` surface. Do not build
+   billing, vendor integrations, ad delivery, or product fitment logic for the
+   class demo.
+7. If browser hosting becomes useful, use the separate, dependency-ordered
    [`HOSTED_DEMO_PLAN.md`](HOSTED_DEMO_PLAN.md) rather than expanding this class
    demo plan.
 
