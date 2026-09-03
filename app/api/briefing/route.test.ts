@@ -47,6 +47,30 @@ const citedOpenAiResponse = {
   }],
 };
 
+const contextOnlyOpenAiResponse = {
+  output_text: "The manual mentions this topic but does not make the requested recommendation.\n<!-- garage-goblin-source-coverage: context_only -->",
+  output: [{
+    type: "message",
+    content: [{ type: "output_text", annotations: [{ type: "file_citation", filename: "mk5-roadster-manual-p0104.txt" }] }],
+  }],
+};
+
+const preferenceOpenAiResponse = {
+  output_text: "Factory Five does not prescribe a body color; the choice is up to you.\n<!-- garage-goblin-source-coverage: personal_preference -->",
+  output: [{
+    type: "message",
+    content: [{ type: "output_text", annotations: [{ type: "file_citation", filename: "mk5-roadster-manual-p0104.txt" }] }],
+  }],
+};
+
+const unmarkedPreferenceOpenAiResponse = {
+  output_text: "The Factory Five manual does not specify a body color, so the choice is up to you.",
+  output: [{
+    type: "message",
+    content: [{ type: "output_text", annotations: [{ type: "file_citation", filename: "mk5-roadster-manual-p0104.txt" }] }],
+  }],
+};
+
 function request(body: Record<string, unknown>) {
   return new Request("http://localhost/api/briefing", {
     method: "POST",
@@ -174,7 +198,46 @@ describe("POST /api/briefing security boundaries", () => {
 
     expect(response.status).toBe(200);
     expect(body.externalResearchSuggested).toBe(false);
+    expect(body.sourceCoverage).toBe("direct");
     expect(body.citations).toHaveLength(1);
+  });
+
+  it("suggests expansion when a cited manual answer only provides context", async () => {
+    mocks.responsesCreate.mockResolvedValue(contextOnlyOpenAiResponse);
+
+    const response = await POST(request({ question: "Which aftermarket option should I buy?" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.citations).toHaveLength(1);
+    expect(body.sourceCoverage).toBe("context_only");
+    expect(body.externalResearchSuggested).toBe(true);
+    expect(body.answer).not.toContain("garage-goblin-source-coverage");
+  });
+
+  it("suggests external research for a cited personal-preference question", async () => {
+    mocks.responsesCreate.mockResolvedValue(preferenceOpenAiResponse);
+
+    const response = await POST(request({ question: "What color should I paint my FF Roadster?" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.citations).toHaveLength(1);
+    expect(body.sourceCoverage).toBe("personal_preference");
+    expect(body.externalResearchSuggested).toBe(true);
+    expect(body.answer).toBe("Factory Five does not prescribe a body color; the choice is up to you.");
+  });
+
+  it("recognizes the paint-color false positive even when the model omits its coverage marker", async () => {
+    mocks.responsesCreate.mockResolvedValue(unmarkedPreferenceOpenAiResponse);
+
+    const response = await POST(request({ question: "What color should I paint my FF Roadster?" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.citations).toHaveLength(1);
+    expect(body.sourceCoverage).toBe("personal_preference");
+    expect(body.externalResearchSuggested).toBe(true);
   });
 
   it("keeps an ordinary deterministic torque response free", async () => {

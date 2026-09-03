@@ -135,6 +135,26 @@ describe("external research consent experience", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it("explains that a cited personal-preference answer leaves the choice to the builder", async () => {
+    const requests = installFetch(() => jsonResponse({
+      answer: "Factory Five does not prescribe a body color; the choice is up to you.",
+      citations: [{ id: "paint-supplies", title: "Mk5 manual", authority: "Factory Five", url: "/api/sources/manual#page=1", page: 1 }],
+      sourceCoverage: "personal_preference",
+      externalResearchSuggested: true,
+    }));
+    const { user, input } = await renderHome();
+
+    await ask(user, input, "What color should I paint my FF Roadster?");
+
+    expect(await screen.findByRole("heading", { name: "The manual leaves this choice to you." })).toBeTruthy();
+    expect(screen.getByText(/This is a builder preference, not a controlling build decision/i)).toBeTruthy();
+    expect(screen.queryByText(/STOP & VERIFY/i)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Stay with official sources" }));
+    await waitFor(() => expect(screen.queryByRole("group", { name: "External research permission" })).toBeNull());
+    expect(requests).toHaveLength(1);
+  });
+
   it("runs an approved expansion as a separate request with the manual result as context", async () => {
     const requests = installFetch((body) => body.webResearch
       ? jsonResponse(externalAnswer)
@@ -192,6 +212,24 @@ describe("external research consent experience", () => {
 
     expect(await screen.findByRole("group", { name: "External research permission" })).toBeTruthy();
     expect(requests).toHaveLength(3);
+  });
+
+  it("does not auto-expand an ambiguous manual answer when session consent exists", async () => {
+    window.sessionStorage.setItem(webResearchSessionConsentKey, "allowed");
+    const requests = installFetch(() => jsonResponse({
+      answer: "The approved sources mention this topic but do not settle the decision.",
+      citations: [{ id: "context", title: "Mk5 manual", authority: "Factory Five", url: "/api/sources/manual#page=1", page: 1 }],
+      sourceCoverage: "context_only",
+      externalResearchSuggested: true,
+    }));
+    const { user, input } = await renderHome();
+
+    await ask(user, input, "Which aftermarket option should I buy?");
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0].webResearch).toBe(false);
+    expect(await screen.findByRole("heading", { name: "Manual context, but no recommendation." })).toBeTruthy();
+    expect(requests).toHaveLength(1);
   });
 
   it("keeps the consent prompt available when external research fails", async () => {

@@ -7,6 +7,7 @@ import { buildDynamicPrepCard } from "@/lib/prep-evidence";
 import { buildBriefingArtifact } from "@/lib/briefing-template";
 import { getVerifiedTorqueResponse } from "@/lib/verified-torque";
 import { consumeLiveQuota } from "@/lib/workspace-store";
+import { assessSourceCoverage } from "@/lib/source-coverage";
 
 export const runtime = "nodejs";
 const openAiRuntimeKey = process.env.OPENAI_PRODUCTION_API_KEY;
@@ -191,6 +192,7 @@ export async function POST(request: Request) {
           searches: prep.searches,
           missingSectionStarts: prep.missingSectionStarts,
         },
+        sourceCoverage: prep.citations.length ? "direct" : "ambiguous",
         externalResearchSuggested: prep.citations.length === 0,
       });
     } catch (error) {
@@ -245,11 +247,17 @@ export async function POST(request: Request) {
     : citations.some((citation) => !citation.page)
       ? "Some retrieved material has not yet been page-mapped. Do not treat an unmapped source card as an exact page citation."
       : undefined;
+  const coverage = assessSourceCoverage({
+    answer: response.output_text,
+    question,
+    hasMappedCitation: citations.length > 0,
+  });
 
   return Response.json({
-    answer: response.output_text,
+    answer: coverage.answer,
     citations,
     warning: citationWarning,
-    externalResearchSuggested: citations.length === 0,
+    sourceCoverage: coverage.sourceCoverage,
+    externalResearchSuggested: coverage.sourceCoverage !== "direct",
   });
 }

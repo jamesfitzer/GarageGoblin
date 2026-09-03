@@ -8,13 +8,14 @@ import { torqueSpecs, type TorqueSpec } from "@/lib/torque-specs";
 import type { BriefingArtifact } from "@/lib/briefing-template";
 import { cannedDemoChats, liveDemoPrompts } from "@/lib/demo-fixtures";
 import { readWebResearchSessionConsent, requestsExternalResearch, writeWebResearchSessionConsent } from "@/lib/external-research";
+import type { SourceCoverage } from "@/lib/source-coverage";
 
 type Citation = { id: string; title: string; authority: string; url: string; page?: number; pageStart?: number; pageEnd?: number; section?: string };
 type WebResearchSource = { title: string; url: string; sourceType: "Factory Five Forum" | "General web" };
 type TorqueSupplement = { title: string; specs: TorqueSpec[] };
 type ForumResearch = { answer: string; sources: { title: string; url: string }[]; warning?: string };
-type ExternalResearchPrompt = { reason: "requested" | "insufficient"; question: string; context?: string };
-type BriefingResponse = { answer: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; webSources?: WebResearchSource[]; externalResearchSuggested?: boolean };
+type ExternalResearchPrompt = { reason: "requested" | "insufficient"; question: string; context?: string; sourceCoverage?: SourceCoverage };
+type BriefingResponse = { answer: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; webSources?: WebResearchSource[]; sourceCoverage?: SourceCoverage; externalResearchSuggested?: boolean };
 type Message = { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; externalResearchPrompt?: ExternalResearchPrompt; createdAt: string };
 type Chat = { id: string; title: string; createdAt: string; updatedAt: string; messages: Message[] };
 type SavedBriefing = { id: string; chatId: string; title: string; question: string; content: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; phase: "Inventory" | "Mock-up" | "Assembly" | "Setup" | "Commissioning"; readiness: "Ready" | "Ready after checks" | "Stop pending resolution"; createdAt: string };
@@ -281,7 +282,7 @@ export default function Home() {
         briefingArtifact: body.briefingArtifact,
         webSources: body.webSources,
         externalResearchPrompt: !webResearch && suggestExternalOnMiss && body.externalResearchSuggested
-          ? { reason: "insufficient", question: briefingQuestion, context: expansionContext }
+          ? { reason: "insufficient", question: briefingQuestion, context: expansionContext, sourceCoverage: body.sourceCoverage }
           : undefined,
         createdAt: new Date().toISOString(),
       };
@@ -444,12 +445,26 @@ function ExternalResearchConsent({ prompt, loading, onSearchOnce, onAllowSession
   onStayOfficial: () => void;
 }) {
   const wasRequested = prompt.reason === "requested";
+  const coverageCopy = prompt.sourceCoverage === "personal_preference"
+    ? {
+      title: "The manual leaves this choice to you.",
+      body: "This is a builder preference, not a controlling build decision. Garage Goblin can look for builder examples and practical tradeoffs.",
+    }
+    : prompt.sourceCoverage === "context_only"
+      ? {
+        title: "Manual context, but no recommendation.",
+        body: "The approved sources mention this topic but do not make the requested recommendation. Garage Goblin can look for broader builder context.",
+      }
+      : {
+        title: "The approved sources do not settle this question.",
+        body: "Garage Goblin can make a separate Factory Five Forum and general-web research pass. External results remain contextual, never controlling guidance.",
+      };
   return <section className="external-research-consent" role="group" aria-label="External research permission">
     <div className="eyebrow">Permission before external research</div>
-    <h3>{wasRequested ? "Search outside the garage library?" : "Expand beyond approved sources?"}</h3>
+    <h3>{wasRequested ? "Search outside the garage library?" : coverageCopy.title}</h3>
     <p>{wasRequested
       ? "This question asks for outside research. Garage Goblin can search the Factory Five Forum first, then the general web for last-resort context."
-      : "No exact approved-source citation came back. Garage Goblin can make a separate Factory Five Forum and general-web research pass."}</p>
+      : coverageCopy.body}</p>
     <small>{wasRequested ? "This uses one live request." : "Expanding uses one additional live request."} External results are lower-authority context and never override Factory Five documentation.</small>
     <div className="external-research-actions">
       <button type="button" onClick={onSearchOnce} disabled={loading}>Search forum + web once</button>
