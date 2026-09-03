@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test": "vitest run",
     "ingest:irs": "node --env-file=.env.local scripts/ingest.mjs",
     "extract:irs-pages": "swift scripts/extract-irs-pages.swift",
     "ingest:irs-pages": "node --env-file=.env.local scripts/ingest-page-index.mjs",
@@ -44,6 +45,7 @@
     "eslint-config-next": "^16.3.3",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
   }
 }

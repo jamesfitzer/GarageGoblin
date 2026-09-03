@@ -59,6 +59,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Security regression tests
+        run: npm test
+
       - name: Production build
         run: npm run build
 
