@@ -1,5 +1,14 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 
+export const clerkCspOptions = {
+  strict: true,
+  directives: {
+    "base-uri": ["self"],
+    "object-src": ["none"],
+    "frame-ancestors": ["none"],
+  },
+};
+
 const isPublicAuthRoute = (pathname: string) =>
   pathname === "/sign-in" || pathname.startsWith("/sign-in/") ||
   pathname === "/sign-up" || pathname.startsWith("/sign-up/");
@@ -15,7 +24,7 @@ export default clerkMiddleware(async (auth, request) => {
   }
 
   await auth.protect();
-});
+}, { contentSecurityPolicy: clerkCspOptions });
 
 export const config = {
   matcher: [
