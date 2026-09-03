@@ -7,13 +7,15 @@ import { initialSources } from "@/lib/sources";
 import { torqueSpecs, type TorqueSpec } from "@/lib/torque-specs";
 import type { BriefingArtifact } from "@/lib/briefing-template";
 import { cannedDemoChats, liveDemoPrompts } from "@/lib/demo-fixtures";
+import { readWebResearchSessionConsent, requestsExternalResearch, writeWebResearchSessionConsent } from "@/lib/external-research";
 
 type Citation = { id: string; title: string; authority: string; url: string; page?: number; pageStart?: number; pageEnd?: number; section?: string };
 type WebResearchSource = { title: string; url: string; sourceType: "Factory Five Forum" | "General web" };
 type TorqueSupplement = { title: string; specs: TorqueSpec[] };
 type ForumResearch = { answer: string; sources: { title: string; url: string }[]; warning?: string };
-type BriefingResponse = { answer: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; webSources?: WebResearchSource[] };
-type Message = { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; createdAt: string };
+type ExternalResearchPrompt = { reason: "requested" | "insufficient"; question: string; context?: string };
+type BriefingResponse = { answer: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; webSources?: WebResearchSource[]; externalResearchSuggested?: boolean };
+type Message = { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; externalResearchPrompt?: ExternalResearchPrompt; createdAt: string };
 type Chat = { id: string; title: string; createdAt: string; updatedAt: string; messages: Message[] };
 type SavedBriefing = { id: string; chatId: string; title: string; question: string; content: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; phase: "Inventory" | "Mock-up" | "Assembly" | "Setup" | "Commissioning"; readiness: "Ready" | "Ready after checks" | "Stop pending resolution"; createdAt: string };
 type StoredWorkspace = { chats: Chat[]; activeChatId: string; briefings: SavedBriefing[] };
@@ -29,11 +31,6 @@ function newId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random()
 function makeChat(title = "New garage conversation"): Chat { const now = new Date().toISOString(); return { id: newId("chat"), title, createdAt: now, updatedAt: now, messages: [] }; }
 function formatDate(date: string) { return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(date)); }
 function normalizeBriefingQuestion(question: string) { return question.trim().replace(/\s+/g, " ").toLowerCase(); }
-function requestsExternalResearch(question: string) {
-  const mentionsExternalSource = /\b(?:forum|forums|google|web|internet|online|reddit)\b/i.test(question);
-  const asksForOutsidePerspective = /\b(?:search|research|look\s*up|check|find|what\s+(?:do|does)\b[\s\S]{0,32}\b(?:say|think|recommend|use)|how\b[\s\S]{0,32}\b(?:feel|think)|consensus|experience)\b/i.test(question);
-  return mentionsExternalSource && asksForOutsidePerspective;
-}
 
 export default function Home() {
   const [question, setQuestion] = useState(quickPrompts[0]);
@@ -45,6 +42,7 @@ export default function Home() {
   const [phase, setPhase] = useState<SavedBriefing["phase"]>("Assembly");
   const [readiness, setReadiness] = useState<SavedBriefing["readiness"]>("Ready after checks");
   const [loading, setLoading] = useState(false);
+  const [externalResearchLoading, setExternalResearchLoading] = useState(false);
   const [forumResearchingMessageId, setForumResearchingMessageId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [liveDemoProgress, setLiveDemoProgress] = useState<{ completed: number; total: number } | null>(null);
@@ -53,7 +51,12 @@ export default function Home() {
   const [bootComplete, setBootComplete] = useState(false);
   const [remotePersistence, setRemotePersistence] = useState<boolean | null>(null);
   const [persistenceFailure, setPersistenceFailure] = useState<"load" | "save" | null>(null);
+  const [webResearchSessionAllowed, setWebResearchSessionAllowed] = useState(false);
   const conversationRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setWebResearchSessionAllowed(readWebResearchSessionConsent(window.sessionStorage));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +110,7 @@ export default function Home() {
 
   const activeChat = useMemo(() => chats.find((chat) => chat.id === activeChatId) ?? null, [activeChatId, chats]);
   const activeBriefing = useMemo(() => briefings.find((briefing) => briefing.id === activeBriefingId) ?? null, [activeBriefingId, briefings]);
-  const latestAnswer = useMemo(() => [...(activeChat?.messages ?? [])].reverse().find((message) => message.role === "assistant") ?? null, [activeChat]);
+  const latestAnswer = useMemo(() => [...(activeChat?.messages ?? [])].reverse().find((message) => message.role === "assistant" && Boolean(message.content)) ?? null, [activeChat]);
 
   useEffect(() => {
     conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: "smooth" });
@@ -131,6 +134,20 @@ export default function Home() {
   function appendMessage(chatId: string, message: Message, title?: string) {
     setChats((current) => current.map((chat) => chat.id === chatId ? { ...chat, title: title ?? chat.title, updatedAt: message.createdAt, messages: [...chat.messages, message] } : chat));
   }
+  function clearExternalResearchPrompt(chatId: string, messageId: string) {
+    setChats((current) => current.map((chat) => chat.id !== chatId ? chat : {
+      ...chat,
+      messages: chat.messages.flatMap((message) => {
+        if (message.id !== messageId) return [message];
+        if (!message.content) return [];
+        return [{ ...message, externalResearchPrompt: undefined }];
+      }),
+    }));
+  }
+  function updateWebResearchSessionConsent(allowed: boolean) {
+    writeWebResearchSessionConsent(window.sessionStorage, allowed);
+    setWebResearchSessionAllowed(allowed);
+  }
 
   function openCannedDemo() {
     const now = new Date().toISOString();
@@ -147,7 +164,7 @@ export default function Home() {
 
   async function runLiveDemo() {
     if (loading || liveDemoProgress) return;
-    setLoading(true); setLiveDemoProgress({ completed: 0, total: liveDemoPrompts.length }); setView("chat"); setSettingsOpen(false);
+    setLoading(true); setExternalResearchLoading(false); setLiveDemoProgress({ completed: 0, total: liveDemoPrompts.length }); setView("chat"); setSettingsOpen(false);
     for (const [index, scenario] of liveDemoPrompts.entries()) {
       const askedAt = new Date().toISOString();
       const chat = makeChat(scenario.title);
@@ -225,35 +242,110 @@ export default function Home() {
     return undefined;
   }
 
+  async function runBriefingRequest({
+    chatId,
+    briefingQuestion,
+    context,
+    webResearch = false,
+    promptMessageId,
+    suggestExternalOnMiss = true,
+  }: {
+    chatId: string;
+    briefingQuestion: string;
+    context?: string;
+    webResearch?: boolean;
+    promptMessageId?: string;
+    suggestExternalOnMiss?: boolean;
+  }) {
+    setLoading(true);
+    setExternalResearchLoading(webResearch);
+    try {
+      const response = await fetch("/api/briefing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: briefingQuestion, webResearch, context }),
+      });
+      const body = (await response.json()) as BriefingResponse & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "The Goblin lost the trail.");
+      const expansionContext = [
+        context,
+        `APPROVED-SOURCE RESULT\n${body.answer}`,
+      ].filter(Boolean).join("\n\n").slice(-4_000);
+      const answer: Message = {
+        id: newId("message"),
+        role: "assistant",
+        content: body.answer,
+        citations: body.citations,
+        warning: body.warning,
+        torqueSupplement: body.torqueSupplement,
+        briefingArtifact: body.briefingArtifact,
+        webSources: body.webSources,
+        externalResearchPrompt: !webResearch && suggestExternalOnMiss && body.externalResearchSuggested
+          ? { reason: "insufficient", question: briefingQuestion, context: expansionContext }
+          : undefined,
+        createdAt: new Date().toISOString(),
+      };
+      if (promptMessageId) clearExternalResearchPrompt(chatId, promptMessageId);
+      appendMessage(chatId, answer);
+      if (!webResearch && /^prep me for\s*:/i.test(briefingQuestion)) {
+        const briefing: SavedBriefing = { id: newId("briefing"), chatId, title: briefingQuestion, question: briefingQuestion, content: answer.content, citations: answer.citations ?? [], warning: answer.warning, torqueSupplement: answer.torqueSupplement, briefingArtifact: answer.briefingArtifact, forumResearch: answer.forumResearch, phase: "Assembly", readiness: answer.briefingArtifact?.readiness ?? "Ready after checks", createdAt: new Date().toISOString() };
+        setBriefings((current) => {
+          const existing = current.find((item) => normalizeBriefingQuestion(item.question) === normalizeBriefingQuestion(briefingQuestion));
+          if (!existing) return [briefing, ...current];
+          const refreshed = { ...briefing, id: existing.id, createdAt: existing.createdAt };
+          return current.map((item) => item.id === existing.id ? refreshed : item);
+        });
+        const existing = briefings.find((item) => normalizeBriefingQuestion(item.question) === normalizeBriefingQuestion(briefingQuestion));
+        setActiveBriefingId(existing?.id ?? briefing.id);
+        if (!answer.externalResearchPrompt) setView("briefings");
+      }
+    } catch (error) {
+      appendMessage(chatId, { id: newId("message"), role: "assistant", content: error instanceof Error ? error.message : "Unknown error.", citations: [], createdAt: new Date().toISOString() });
+    } finally {
+      setLoading(false);
+      setExternalResearchLoading(false);
+    }
+  }
+
+  async function approveExternalResearch(chatId: string, messageId: string, prompt: ExternalResearchPrompt, allowForSession: boolean) {
+    if (allowForSession) updateWebResearchSessionConsent(true);
+    await runBriefingRequest({ chatId, briefingQuestion: prompt.question, context: prompt.context, webResearch: true, promptMessageId: messageId });
+  }
+
+  async function stayWithApprovedSources(chatId: string, messageId: string, prompt: ExternalResearchPrompt) {
+    clearExternalResearchPrompt(chatId, messageId);
+    if (prompt.reason === "requested") {
+      await runBriefingRequest({ chatId, briefingQuestion: prompt.question, context: prompt.context, suggestExternalOnMiss: false });
+    }
+  }
+
   async function ask(event: FormEvent) {
     event.preventDefault();
     const trimmedQuestion = question.trim();
     if (!trimmedQuestion || !activeChat || loading) return;
     const askedAt = new Date().toISOString();
+    const priorContext = activeChat.messages.slice(-4).map((message) => `${message.role}: ${message.content}`).join("\n\n") || undefined;
     appendMessage(activeChat.id, { id: newId("message"), role: "user", content: trimmedQuestion, createdAt: askedAt }, activeChat.messages.length === 0 ? trimmedQuestion : undefined);
-    setQuestion(""); setLoading(true);
-    try {
-      const webResearch = requestsExternalResearch(trimmedQuestion);
-      const priorContext = webResearch ? activeChat.messages.slice(-4).map((message) => `${message.role}: ${message.content}`).join("\n\n") : undefined;
-      const response = await fetch("/api/briefing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: trimmedQuestion, webResearch, context: priorContext }) });
-      const body = (await response.json()) as BriefingResponse & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "The Goblin lost the trail.");
-      const answer: Message = { id: newId("message"), role: "assistant", content: body.answer, citations: body.citations, warning: body.warning, torqueSupplement: body.torqueSupplement, briefingArtifact: body.briefingArtifact, webSources: body.webSources, createdAt: new Date().toISOString() };
-      appendMessage(activeChat.id, answer);
-      if (/^prep me for\s*:/i.test(trimmedQuestion)) {
-        const briefing: SavedBriefing = { id: newId("briefing"), chatId: activeChat.id, title: trimmedQuestion, question: trimmedQuestion, content: answer.content, citations: answer.citations ?? [], warning: answer.warning, torqueSupplement: answer.torqueSupplement, briefingArtifact: answer.briefingArtifact, forumResearch: answer.forumResearch, phase: "Assembly", readiness: answer.briefingArtifact?.readiness ?? "Ready after checks", createdAt: new Date().toISOString() };
-        setBriefings((current) => {
-          const existing = current.find((item) => normalizeBriefingQuestion(item.question) === normalizeBriefingQuestion(trimmedQuestion));
-          if (!existing) return [briefing, ...current];
-          const refreshed = { ...briefing, id: existing.id, createdAt: existing.createdAt };
-          return current.map((item) => item.id === existing.id ? refreshed : item);
-        });
-        const existing = briefings.find((item) => normalizeBriefingQuestion(item.question) === normalizeBriefingQuestion(trimmedQuestion));
-        setActiveBriefingId(existing?.id ?? briefing.id); setView("briefings");
-      }
-    } catch (error) {
-      appendMessage(activeChat.id, { id: newId("message"), role: "assistant", content: error instanceof Error ? error.message : "Unknown error.", citations: [], createdAt: new Date().toISOString() });
-    } finally { setLoading(false); }
+    setQuestion("");
+
+    const externalResearchRequested = requestsExternalResearch(trimmedQuestion);
+    if (externalResearchRequested && !webResearchSessionAllowed) {
+      appendMessage(activeChat.id, {
+        id: newId("message"),
+        role: "assistant",
+        content: "",
+        externalResearchPrompt: { reason: "requested", question: trimmedQuestion, context: priorContext },
+        createdAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    await runBriefingRequest({
+      chatId: activeChat.id,
+      briefingQuestion: trimmedQuestion,
+      context: externalResearchRequested ? priorContext : undefined,
+      webResearch: externalResearchRequested && webResearchSessionAllowed,
+    });
   }
 
   function saveBriefing(message: Message) {
@@ -294,18 +386,20 @@ export default function Home() {
     {view === "chat" ? <section className="chat-workspace">
         <div className="conversation" aria-live="polite" ref={conversationRef}>
           {!activeChat?.messages.length && <p className="empty-state">Ask a manual question. This conversation will remain here on this browser.</p>}
-          {activeChat?.messages.map((message, index) => { const briefingQuestion = [...activeChat.messages.slice(0, index + 1)].reverse().find((item) => item.role === "user")?.content; return <article className={`message message-${message.role}`} key={message.id}>
+          {activeChat?.messages.map((message, index) => { const briefingQuestion = [...activeChat.messages.slice(0, index + 1)].reverse().find((item) => item.role === "user")?.content; const externalResearchPrompt = message.externalResearchPrompt; return <article className={`message message-${message.role}`} key={message.id}>
             <div className="message-label">{message.role === "user" ? "You" : "Garage Goblin"} <time>{formatDate(message.createdAt)}</time></div>
-            {message.briefingArtifact ? <BriefingArtifactView artifact={message.briefingArtifact} forumResearch={message.forumResearch} onResearchForum={() => researchForum(activeChat.id, message.id, briefingQuestion ?? "")} researchingForum={forumResearchingMessageId === message.id} /> : <MarkdownContent content={message.content} />}
-            {message.role === "assistant" && <button className="copy-response" type="button" onClick={() => copyResponse(message)}>{copiedMessageId === message.id ? "Copied for Codex" : "Copy response"}</button>}
+            {message.content && (message.briefingArtifact ? <BriefingArtifactView artifact={message.briefingArtifact} forumResearch={message.forumResearch} onResearchForum={() => researchForum(activeChat.id, message.id, briefingQuestion ?? "")} researchingForum={forumResearchingMessageId === message.id} /> : <MarkdownContent content={message.content} />)}
+            {externalResearchPrompt && <ExternalResearchConsent prompt={externalResearchPrompt} loading={loading} onSearchOnce={() => approveExternalResearch(activeChat.id, message.id, externalResearchPrompt, false)} onAllowSession={() => approveExternalResearch(activeChat.id, message.id, externalResearchPrompt, true)} onStayOfficial={() => stayWithApprovedSources(activeChat.id, message.id, externalResearchPrompt)} />}
+            {message.role === "assistant" && message.content && <button className="copy-response" type="button" onClick={() => copyResponse(message)}>{copiedMessageId === message.id ? "Copied for Codex" : "Copy response"}</button>}
             {message.warning && <div className="notice">{message.warning}</div>}
             {message.torqueSupplement && <BriefingTorqueSupplement supplement={message.torqueSupplement} />}
             <CitationCards citations={message.citations ?? []} />
             {message.webSources && <WebResearchSources sources={message.webSources} />}
           </article>; })}
-          {loading && <div className="searching"><span aria-hidden="true">⌁</span>The Goblin is checking the manuals…</div>}
+          {loading && <div className="searching"><span aria-hidden="true">⌁</span>{externalResearchLoading ? "The Goblin is searching the forum and web…" : "The Goblin is checking the manuals…"}</div>}
         </div>
         <div className="composer"><div className="quick">{quickPrompts.map((prompt) => <button key={prompt} type="button" onClick={() => setQuestion(prompt)}>{prompt}</button>)}</div>
+        {webResearchSessionAllowed && <div className="session-research-consent"><span>Web searches you explicitly request are allowed for this tab.</span><button type="button" onClick={() => updateWebResearchSessionConsent(false)}>Ask me each time</button></div>}
         <form className="prompt" onSubmit={ask}><input value={question} onChange={(event) => setQuestion(event.target.value)} aria-label="Build question" placeholder="Ask a manual-grounded build question" disabled={!activeChat || loading} /><button disabled={!activeChat || loading}>{loading ? "Searching..." : "Ask"}</button></form>
         {latestAnswer && <div className="capture">
           <div><strong>Save the latest answer as a build briefing</strong><span>Capture this answer and its exact source cards for the workbench.</span></div>
@@ -342,6 +436,29 @@ function WebResearchSources({ sources }: { sources: WebResearchSource[] }) {
   return <section className="web-research-sources"><div className="eyebrow">External research sources</div>{sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer"><span>{source.sourceType === "Factory Five Forum" ? "Forum" : "Web"}</span>{source.title}</a>)}</section>;
 }
 
+function ExternalResearchConsent({ prompt, loading, onSearchOnce, onAllowSession, onStayOfficial }: {
+  prompt: ExternalResearchPrompt;
+  loading: boolean;
+  onSearchOnce: () => void;
+  onAllowSession: () => void;
+  onStayOfficial: () => void;
+}) {
+  const wasRequested = prompt.reason === "requested";
+  return <section className="external-research-consent" role="group" aria-label="External research permission">
+    <div className="eyebrow">Permission before external research</div>
+    <h3>{wasRequested ? "Search outside the garage library?" : "Expand beyond approved sources?"}</h3>
+    <p>{wasRequested
+      ? "This question asks for outside research. Garage Goblin can search the Factory Five Forum first, then the general web for last-resort context."
+      : "No exact approved-source citation came back. Garage Goblin can make a separate Factory Five Forum and general-web research pass."}</p>
+    <small>{wasRequested ? "This uses one live request." : "Expanding uses one additional live request."} External results are lower-authority context and never override Factory Five documentation.</small>
+    <div className="external-research-actions">
+      <button type="button" onClick={onSearchOnce} disabled={loading}>Search forum + web once</button>
+      {wasRequested && <button className="secondary" type="button" onClick={onAllowSession} disabled={loading}>Allow requested searches this session</button>}
+      <button className="quiet" type="button" onClick={onStayOfficial} disabled={loading}>{wasRequested ? "Use approved sources only" : "Stay with official sources"}</button>
+    </div>
+  </section>;
+}
+
 function GarageBootSequence({ onDismiss }: { onDismiss: () => void }) {
   return <section className="garage-boot" aria-label="Garage Goblin is starting">
     <div className="garage-boot-grid" aria-hidden="true" />
@@ -373,7 +490,7 @@ function HowItWorksWorkspace() {
       <article><span>5</span><h3>Show the receipts</h3><p>Every manual-based claim links to the exact PDF page so the builder can inspect the original instruction.</p></article>
     </section>
     <section className="how-grid">
-      <article className="how-panel"><div className="eyebrow">Which sources win?</div><h3>The manual has the final word.</h3><ol className="source-order"><li><strong>Factory Five documents</strong><span>Controlling build guidance.</span></li><li><strong>Vendor instructions</strong><span>Important component-specific guidance.</span></li><li><strong>Factory Five Forum</strong><span>Clearly labeled builder experience and gotchas.</span></li><li><strong>General web</strong><span>Last-resort context, never controlling guidance.</span></li></ol></article>
+      <article className="how-panel"><div className="eyebrow">Which sources win?</div><h3>The manual has the final word.</h3><ol className="source-order"><li><strong>Factory Five documents</strong><span>Controlling build guidance.</span></li><li><strong>Vendor instructions</strong><span>Important component-specific guidance.</span></li><li><strong>Factory Five Forum</strong><span>Clearly labeled builder experience and gotchas.</span></li><li><strong>General web</strong><span>Last-resort context, only after builder approval.</span></li></ol></article>
       <article className="how-panel how-safety"><div className="eyebrow">Why it is safer than a generic chatbot</div><h3>It knows when not to guess.</h3><p>If the manuals disagree, a selected part lacks instructions, or the exact configuration is unclear, Garage Goblin raises <strong>STOP &amp; VERIFY</strong> instead of inventing a confident answer.</p><p>Torque values are handled as reviewed, source-linked records—not improvised text.</p></article>
       <article className="how-panel"><div className="eyebrow">What is real in this demo?</div><h3>Both paths are useful.</h3><dl className="how-demo-paths"><div><dt>Live demo</dt><dd>Runs real AI retrieval against the indexed manuals and saves the resulting briefings.</dd></div><div><dt>Canned demo</dt><dd>Displays source-linked fallback examples instantly when Wi-Fi, API limits, or demo gods are uncooperative.</dd></div></dl></article>
     </section>

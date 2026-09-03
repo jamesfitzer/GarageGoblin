@@ -39,6 +39,14 @@ const openAiResponse = {
   output: [{ type: "message", content: [{ type: "output_text", annotations: [] }] }],
 };
 
+const citedOpenAiResponse = {
+  output_text: "Grounded answer with a source.",
+  output: [{
+    type: "message",
+    content: [{ type: "output_text", annotations: [{ type: "file_citation", filename: "mk5-roadster-manual-p0104.txt" }] }],
+  }],
+};
+
 function request(body: Record<string, unknown>) {
   return new Request("http://localhost/api/briefing", {
     method: "POST",
@@ -80,7 +88,7 @@ describe("POST /api/briefing security boundaries", () => {
     ["prep card", { question: "Prep me for: IRS installation" }],
     ["forum research", { question: "Any IRS installation gotchas?", forumResearch: true }],
     ["web research", { question: "Research IRS installation online", webResearch: true }],
-    ["keyword-triggered web research", { question: "Search the web for IRS installation advice" }],
+    ["web-worded manual retrieval", { question: "Search the web for IRS installation advice" }],
   ])("blocks %s when the daily quota is exhausted", async (_, body) => {
     mocks.consumeLiveQuota.mockResolvedValue({ allowed: false, period: "day" });
 
@@ -97,7 +105,7 @@ describe("POST /api/briefing security boundaries", () => {
     ["prep card", { question: "Prep me for: IRS installation" }],
     ["forum research", { question: "Any IRS installation gotchas?", forumResearch: true }],
     ["web research", { question: "Research IRS installation online", webResearch: true }],
-    ["keyword-triggered web research", { question: "Search the web for IRS installation advice" }],
+    ["web-worded manual retrieval", { question: "Search the web for IRS installation advice" }],
   ])("fails closed for %s when quota storage is unavailable", async (_, body) => {
     mocks.consumeLiveQuota.mockRejectedValue(new Error("database unavailable"));
 
@@ -126,10 +134,22 @@ describe("POST /api/briefing security boundaries", () => {
     expect(mocks.consumeLiveQuota.mock.invocationCallOrder[0]).toBeLessThan(mocks.responsesCreate.mock.invocationCallOrder[0]);
   });
 
-  it("consumes quota before prep-card generation", async () => {
-    const response = await POST(request({ question: "Prep me for: IRS installation" }));
+  it("requires an explicit boolean flag before performing general-web research", async () => {
+    const response = await POST(request({ question: "Search the web for IRS installation advice" }));
 
     expect(response.status).toBe(200);
+    expect(mocks.responsesCreate).toHaveBeenCalledOnce();
+    expect(mocks.responsesCreate).toHaveBeenCalledWith(expect.objectContaining({
+      tools: [expect.objectContaining({ type: "file_search" })],
+    }));
+  });
+
+  it("consumes quota before prep-card generation", async () => {
+    const response = await POST(request({ question: "Prep me for: IRS installation" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.externalResearchSuggested).toBe(true);
     expect(mocks.consumeLiveQuota).toHaveBeenCalledOnce();
     expect(mocks.buildDynamicPrepCard).toHaveBeenCalledOnce();
     expect(mocks.consumeLiveQuota.mock.invocationCallOrder[0]).toBeLessThan(mocks.buildDynamicPrepCard.mock.invocationCallOrder[0]);
@@ -137,11 +157,24 @@ describe("POST /api/briefing security boundaries", () => {
 
   it("consumes quota before ordinary manual retrieval", async () => {
     const response = await POST(request({ question: "How do I install the IRS?" }));
+    const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(body.externalResearchSuggested).toBe(true);
     expect(mocks.consumeLiveQuota).toHaveBeenCalledOnce();
     expect(mocks.responsesCreate).toHaveBeenCalledOnce();
     expect(mocks.consumeLiveQuota.mock.invocationCallOrder[0]).toBeLessThan(mocks.responsesCreate.mock.invocationCallOrder[0]);
+  });
+
+  it("does not suggest external expansion when manual retrieval maps a citation", async () => {
+    mocks.responsesCreate.mockResolvedValue(citedOpenAiResponse);
+
+    const response = await POST(request({ question: "How do I install the IRS?" }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.externalResearchSuggested).toBe(false);
+    expect(body.citations).toHaveLength(1);
   });
 
   it("keeps an ordinary deterministic torque response free", async () => {
