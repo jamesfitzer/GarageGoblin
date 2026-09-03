@@ -71,6 +71,24 @@ describe("/api/workspace authorization", () => {
     expect(mocks.writeWorkspace).toHaveBeenCalledWith("user-a", submittedWorkspace);
   });
 
+  it("rejects an invalid nested workspace before writing it", async () => {
+    mocks.isWorkspace.mockReturnValue(false);
+
+    const response = await PUT(putRequest({ workspace: { activeChatId: "chat-1", chats: [{ messages: [{ content: 42 }] }], briefings: [] } }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.writeWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("does not return a malformed workspace from storage", async () => {
+    mocks.readWorkspace.mockResolvedValue({ activeChatId: "chat-1", chats: [{ bad: true }], briefings: [] });
+    mocks.isWorkspace.mockReturnValue(false);
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+  });
+
   it("returns 503 when workspace storage fails", async () => {
     mocks.readWorkspace.mockRejectedValue(new Error("database unavailable"));
 

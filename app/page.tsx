@@ -9,19 +9,14 @@ import type { BriefingArtifact } from "@/lib/briefing-template";
 import { cannedDemoChats, liveDemoPrompts } from "@/lib/demo-fixtures";
 import { readWebResearchSessionConsent, requestsExternalResearch, writeWebResearchSessionConsent } from "@/lib/external-research";
 import type { SourceCoverage } from "@/lib/source-coverage";
+import { isWorkspace, safeLink, type Citation, type ExternalResearchPrompt, type ForumResearch, type PersistedWorkspace, type SavedBriefing, type TorqueSupplement, type WebResearchSource, type WorkspaceChat, type WorkspaceMessage } from "@/lib/workspace-schema";
 
-type Citation = { id: string; title: string; authority: string; url: string; page?: number; pageStart?: number; pageEnd?: number; section?: string };
-type WebResearchSource = { title: string; url: string; sourceType: "Factory Five Forum" | "General web" };
-type TorqueSupplement = { title: string; specs: TorqueSpec[] };
-type ForumResearch = { answer: string; sources: { title: string; url: string }[]; warning?: string };
-type ExternalResearchPrompt = { reason: "requested" | "insufficient"; question: string; context?: string; sourceCoverage?: SourceCoverage };
 type BriefingResponse = { answer: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; webSources?: WebResearchSource[]; sourceCoverage?: SourceCoverage; externalResearchSuggested?: boolean };
-type Message = { id: string; role: "user" | "assistant"; content: string; citations?: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; externalResearchPrompt?: ExternalResearchPrompt; createdAt: string };
-type Chat = { id: string; title: string; createdAt: string; updatedAt: string; messages: Message[] };
-type SavedBriefing = { id: string; chatId: string; title: string; question: string; content: string; citations: Citation[]; warning?: string; torqueSupplement?: TorqueSupplement; briefingArtifact?: BriefingArtifact; forumResearch?: ForumResearch; webSources?: WebResearchSource[]; phase: "Inventory" | "Mock-up" | "Assembly" | "Setup" | "Commissioning"; readiness: "Ready" | "Ready after checks" | "Stop pending resolution"; createdAt: string };
-type StoredWorkspace = { chats: Chat[]; activeChatId: string; briefings: SavedBriefing[] };
+type Message = WorkspaceMessage;
+type Chat = WorkspaceChat;
+type StoredWorkspace = PersistedWorkspace & { activeChatId: string };
 type WorkspaceView = "chat" | "briefings" | "torque" | "how-it-works";
-type WorkspaceResponse = { workspace?: StoredWorkspace | null; error?: string };
+type WorkspaceResponse = { workspace?: PersistedWorkspace | null; error?: string };
 
 const storageKey = "garage-goblin.local-workspace.v1";
 const quickPrompts = ["Prep me for: 2015+ IRS installation.", "What gear oil and friction modifier does this 2015+ IRS need?", "Can I drill or grind the IRS mount so the fourth bolt goes in?"];
@@ -65,15 +60,17 @@ export default function Home() {
       try {
         const saved = window.localStorage.getItem(storageKey);
         if (saved) {
-          const workspace = JSON.parse(saved) as StoredWorkspace;
-          if (workspace.chats?.length && workspace.activeChatId) return workspace;
+          const workspace = JSON.parse(saved) as unknown;
+          if (isWorkspace(workspace) && workspace.chats.length && workspace.activeChatId) return workspace as StoredWorkspace;
         }
       } catch { /* A broken cache should not prevent a new workspace. */ }
       return null;
     };
-    const applyWorkspace = (workspace: StoredWorkspace | null) => {
+    const applyWorkspace = (workspace: PersistedWorkspace | null) => {
       if (cancelled) return;
-      const nextWorkspace = workspace ?? { chats: [makeChat()], activeChatId: "", briefings: [] };
+      const nextWorkspace = workspace && isWorkspace(workspace) && workspace.chats.length
+        ? { ...workspace, activeChatId: workspace.activeChatId ?? workspace.chats[0].id }
+        : { chats: [makeChat()], activeChatId: "", briefings: [] };
       if (!nextWorkspace.activeChatId) nextWorkspace.activeChatId = nextWorkspace.chats[0].id;
       setChats(nextWorkspace.chats); setActiveChatId(nextWorkspace.activeChatId); setBriefings(nextWorkspace.briefings ?? []); setHydrated(true);
     };
@@ -85,7 +82,7 @@ export default function Home() {
         const body = await response.json() as WorkspaceResponse;
         setRemotePersistence(true);
         setPersistenceFailure(null);
-        applyWorkspace(body.workspace ?? cached);
+        applyWorkspace(body.workspace && isWorkspace(body.workspace) ? body.workspace : cached);
       } catch {
         setRemotePersistence(false);
         setPersistenceFailure("load");
@@ -434,7 +431,7 @@ export default function Home() {
 
 function WebResearchSources({ sources }: { sources: WebResearchSource[] }) {
   if (!sources.length) return null;
-  return <section className="web-research-sources"><div className="eyebrow">External research sources</div>{sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer"><span>{source.sourceType === "Factory Five Forum" ? "Forum" : "Web"}</span>{source.title}</a>)}</section>;
+  return <section className="web-research-sources"><div className="eyebrow">External research sources</div>{sources.map((source) => <SafeLink key={source.url} url={source.url} className="external-source" showHostname><span>{source.sourceType === "Factory Five Forum" ? "Forum" : "Web"}</span>{source.title}</SafeLink>)}</section>;
 }
 
 function ExternalResearchConsent({ prompt, loading, onSearchOnce, onAllowSession, onStayOfficial }: {
@@ -568,8 +565,14 @@ function BriefingArtifactView({ artifact, forumResearch, onResearchForum, resear
   return <section className="briefing-artifact">
     <div className="briefing-facts"><span><strong>Readiness</strong>{artifact.readiness}</span><span><strong>Build phase</strong>{artifact.buildPhase}</span><span><strong>Authority</strong>{artifact.primaryAuthority}</span></div>
     {artifact.sections.map((section) => <section className={section.id === "stop" ? "briefing-section briefing-stop" : "briefing-section"} key={section.id}><h3>{section.title}</h3><MarkdownContent content={section.content} /></section>)}
-    <section className="forum-research"><div><div className="eyebrow">Optional community context</div><h3>Factory Five Forum gotchas</h3></div>{forumResearch ? <><MarkdownContent content={forumResearch.answer} />{forumResearch.warning && <p className="forum-warning">{forumResearch.warning}</p>}{forumResearch.sources.length > 0 && <div className="forum-sources">{forumResearch.sources.map((source) => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}</a>)}</div>}</> : <><p>Searches only the Factory Five Forum and never overrides the controlling manual.</p><button type="button" onClick={onResearchForum} disabled={!onResearchForum || researchingForum}>{researchingForum ? "Searching Factory Five Forum…" : "Research Factory Five Forum gotchas"}</button></>}</section>
+    <section className="forum-research"><div><div className="eyebrow">Optional community context</div><h3>Factory Five Forum gotchas</h3></div>{forumResearch ? <><MarkdownContent content={forumResearch.answer} />{forumResearch.warning && <p className="forum-warning">{forumResearch.warning}</p>}{forumResearch.sources.length > 0 && <div className="forum-sources">{forumResearch.sources.map((source) => <SafeLink key={source.url} url={source.url} showHostname>{source.title}</SafeLink>)}</div>}</> : <><p>Searches only the Factory Five Forum and never overrides the controlling manual.</p><button type="button" onClick={onResearchForum} disabled={!onResearchForum || researchingForum}>{researchingForum ? "Searching Factory Five Forum…" : "Research Factory Five Forum gotchas"}</button></>}</section>
   </section>;
+}
+
+function SafeLink({ url, children, className, showHostname = false }: { url: string; children: ReactNode; className?: string; showHostname?: boolean }) {
+  const link = safeLink(url);
+  if (!link) return <span className={className}>{children}</span>;
+  return <a className={className} href={link.href} target="_blank" rel="noreferrer">{children}{showHostname && link.hostname && <small className="link-host">{link.hostname}</small>}</a>;
 }
 
 function InlineMarkdown({ content }: { content: string }) {
@@ -578,7 +581,7 @@ function InlineMarkdown({ content }: { content: string }) {
     if (/^\*\*[^*]+\*\*$/.test(part)) return <strong key={index}>{part.slice(2, -2)}</strong>;
     if (/^`[^`]+`$/.test(part)) return <code key={index}>{part.slice(1, -1)}</code>;
     const link = /^\[([^\]]+)\]\(([^\s)]+)\)$/.exec(part);
-    if (link) return <a key={index} href={link[2]} target="_blank" rel="noreferrer">{link[1]}</a>;
+    if (link) return <SafeLink key={index} url={link[2]}>{link[1]}</SafeLink>;
     return part;
   })}</>;
 }
@@ -645,6 +648,6 @@ function CitationCards({ citations }: { citations: Citation[] }) {
       ? ` · ${citation.section} · PDF pp. ${citation.pageStart}–${citation.pageEnd}`
       : sortedPages.length ? ` · PDF p${sortedPages.length === 1 ? "." : "p."} ${sortedPages.join(", ")}` : " · page mapping pending";
     const sourceUrl = citation.url.replace(/#page=\d+$/, "");
-    return <div className="source-card" key={sourceUrl}><div><strong>{citation.title}</strong><br /><span className="status">{citation.authority}{pageLabel}</span>{!citation.section && sortedPages.length > 0 && <div className="page-links">{sortedPages.map((page) => <a href={`${sourceUrl}#page=${page}`} target="_blank" rel="noreferrer" key={page}>PDF p. {page}</a>)}</div>}{citation.section && citation.pageStart && <div className="page-links"><a href={`${sourceUrl}#page=${citation.pageStart}`} target="_blank" rel="noreferrer">Open section at PDF p. {citation.pageStart}</a></div>}</div><a className="open-document" href={sourceUrl} target="_blank" rel="noreferrer">Open document</a></div>;
+    return <div className="source-card" key={sourceUrl}><div><strong>{citation.title}</strong><br /><span className="status">{citation.authority}{pageLabel}</span>{!citation.section && sortedPages.length > 0 && <div className="page-links">{sortedPages.map((page) => <SafeLink url={`${sourceUrl}#page=${page}`} key={page}>PDF p. {page}</SafeLink>)}</div>}{citation.section && citation.pageStart && <div className="page-links"><SafeLink url={`${sourceUrl}#page=${citation.pageStart}`}>Open section at PDF p. {citation.pageStart}</SafeLink></div>}</div><SafeLink className="open-document" url={sourceUrl}>Open document</SafeLink></div>;
   })}</>;
 }

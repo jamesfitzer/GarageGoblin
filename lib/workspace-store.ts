@@ -1,20 +1,10 @@
 import { neon } from "@neondatabase/serverless";
+import type { PersistedWorkspace } from "@/lib/workspace-schema";
+
+export { isWorkspace, type PersistedWorkspace } from "@/lib/workspace-schema";
 
 const databaseUrl = process.env.DATABASE_URL;
 export const database = databaseUrl ? neon(databaseUrl) : null;
-
-export type PersistedWorkspace = {
-  activeChatId: string | null;
-  chats: unknown[];
-  briefings: unknown[];
-};
-
-export function isWorkspace(value: unknown): value is PersistedWorkspace {
-  if (!value || typeof value !== "object") return false;
-  const workspace = value as Record<string, unknown>;
-  return (typeof workspace.activeChatId === "string" || workspace.activeChatId === null) &&
-    Array.isArray(workspace.chats) && Array.isArray(workspace.briefings);
-}
 
 export async function ensureUser(userId: string) {
   if (!database) return;
