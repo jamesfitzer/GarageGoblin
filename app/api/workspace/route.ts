@@ -11,6 +11,9 @@ export async function GET() {
   try {
     const workspace = await readWorkspace(userId);
     if (!workspace) return Response.json({ workspace: null });
+    if (!isWorkspace(workspace)) {
+      return Response.json({ error: "Garage workspace storage is unavailable." }, { status: 503 });
+    }
     return Response.json({ workspace });
   } catch {
     return Response.json({ error: "Garage workspace storage is unavailable." }, { status: 503 });

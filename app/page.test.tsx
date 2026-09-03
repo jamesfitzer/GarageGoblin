@@ -249,4 +249,30 @@ describe("external research consent experience", () => {
     expect(await screen.findByText("External context.")).toBeTruthy();
     expect(screen.queryByRole("group", { name: "External research permission" })).toBeNull();
   });
+
+  it("does not make unsafe model or external-source URLs clickable", async () => {
+    installFetch(() => jsonResponse({
+      answer: "Do not open [this link](javascript:alert(1)).",
+      citations: [],
+      webSources: [{ title: "Unsafe source", url: "javascript:alert(1)", sourceType: "General web" }],
+    }));
+    const { user, input } = await renderHome();
+
+    await ask(user, input, "What should I inspect?");
+
+    expect(await screen.findByText("this link")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "this link" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /unsafe source/i })).toBeNull();
+  });
+
+  it("shows an external source hostname beside a safe research link", async () => {
+    const requests = installFetch(() => jsonResponse(externalAnswer));
+    const { user, input } = await renderHome();
+
+    await ask(user, input, "What should I inspect?");
+
+    expect((await screen.findByRole("link", { name: /factory five forum thread/i })).getAttribute("href")).toBe("https://thefactoryfiveforum.com/example");
+    expect(screen.getByText("thefactoryfiveforum.com")).toBeTruthy();
+    expect(requests).toHaveLength(1);
+  });
 });
